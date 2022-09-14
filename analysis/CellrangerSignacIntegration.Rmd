@@ -1,0 +1,276 @@
+---
+title: "Signac: Integration and clustering of cellranger quantifications"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+# Load packages and saved workspace
+```{r}
+library(tidyverse)
+library(GenomicRanges)
+library(Seurat)
+library(Signac)
+library(EnsDb.Hsapiens.v86)
+```
+
+```{r echo=FALSE}
+load("../Cellranger_HGMM_PBMC_seurat_090222_QC.RData")
+```
+```{r eval=FALSE}
+load("Cellranger_HGMM_PBMC_seurat_090222_QC.RData")
+```
+
+# Create union set of peaks 
+This in my opinion is the source of a major shortcoming of cellranger, and results in a lot of redundant/circular logic and processing.
+If the question of "what constitutes a cell?" depends on how much signal and enrichment we get over genomic features, then cellranger has 
+already decided which minimally-viable cells to retain before we've even quantified the signal over the final set of features. 
+In other words, the accepted workflow calls peaks on each sample, quantifies and filters out some cells based on those peaks, 
+and is completely unaware of information from other cells/samples/replicates/conditions run separately. 
+We therefore need to do most of this all over again here; we define a union set and run `FeatureMatrix` to re-do all of our feature counts per cell.
+
+In my opinion, it would be far better to identify all peaks based on all samples and experimental conditions, 
+quantify the number of fragments for each cell barcode under those features _once_, then filter for QC and proceed with the analysis. 
+
+Both approaches share the additional limitation that some regulatory elements may only be present or utilized in a small fraction of cells, or otherwise are cell-type- or condition-specific. 
+Calling peaks essentially in a pseudo-bulk fashion like this may lack the power to detect sites that aren't largely ubiquitous.
+This is an area I believe we in the field can and should improve upon.
+
+## Import cellranger peak calls
+```{r echo=FALSE}
+peaks.HGMM <- read.table(
+  file = "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_HGMM_cellranger/outs/peaks.bed",
+  col.names = c("chr", "start", "end")
+)
+peaks.PBMC <- read.table(
+  file = "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_PBMC_cellranger/outs/peaks.bed",
+  col.names = c("chr", "start", "end")
+)
+```
+```{r eval=FALSE}
+peaks.HGMM <- read.table(
+  file = "10x_HGMM_cellranger/outs/peaks.bed",
+  col.names = c("chr", "start", "end")
+)
+peaks.PBMC <- read.table(
+  file = "10x_PBMC_cellranger/outs/peaks.bed",
+  col.names = c("chr", "start", "end")
+)
+```
+
+## Convert to genomic ranges
+```{r}
+gr.HGMM <- makeGRangesFromDataFrame(peaks.HGMM)
+gr.PBMC <- makeGRangesFromDataFrame(peaks.PBMC)
+```
+
+## Import cCREs from Zhang. et al 2021 scATAC atlas study
+```{r echo=FALSE}
+p <- as.data.frame(read.table("/proj/jmsimon/alevinForATAC/cCRE_hg38.bed",header=F,sep="\t"))
+colnames(p) <- c("chr","start","stop")
+cre <- makeGRangesFromDataFrame(p)
+```
+```{r eval=FALSE}
+p <- as.data.frame(read.table("cCRE_hg38.bed",header=F,sep="\t"))
+colnames(p) <- c("chr","start","stop")
+cre <- makeGRangesFromDataFrame(p)
+```
+
+
+## Remove non standard chromosomes
+```{r}
+gr.HGMM <- keepStandardChromosomes(gr.HGMM,pruning.mode="coarse")
+gr.PBMC <- keepStandardChromosomes(gr.PBMC,pruning.mode="coarse")
+gr.cre <- keepStandardChromosomes(cre,pruning.mode="coarse")
+```
+
+## Create a unified set of peaks to quantify in each dataset
+```{r}
+combined.peaks <- reduce(x = c(gr.HGMM, gr.PBMC, gr.cre))
+
+# Filter out bad peaks based on length
+peakwidths <- width(combined.peaks)
+combined.peaks <- combined.peaks[peakwidths  < 10000 & peakwidths > 20]
+```
+
+# Compute feature matrix for combined peaks
+```{r}
+HGMM.counts <- FeatureMatrix(
+  fragments = Fragments(HGMM_cr_seurat),
+  features = combined.peaks,
+  cells = colnames(HGMM_cr_seurat)
+)
+
+PBMC.counts <- FeatureMatrix(
+  fragments = Fragments(PBMC_cr_seurat),
+  features = combined.peaks,
+  cells = colnames(PBMC_cr_seurat)
+)
+```
+
+# Create new chromatin assays and seurat objects
+```{r}
+HGMM_assay <- CreateChromatinAssay(HGMM.counts, fragments = Fragments(HGMM_cr_seurat))
+HGMM_seurat <- CreateSeuratObject(HGMM_assay, assay = "ATAC", meta.data=as.data.frame(HGMM_cr_seurat@meta.data))
+HGMM_seurat$Sample <- "HGMM"
+
+PBMC_assay <- CreateChromatinAssay(PBMC.counts, fragments = Fragments(PBMC_cr_seurat))
+PBMC_seurat <- CreateSeuratObject(PBMC_assay, assay = "ATAC", meta.data=as.data.frame(PBMC_cr_seurat@meta.data))
+PBMC_seurat$Sample <- "PBMC"
+```
+
+# Merge seurat objects
+```{r}
+cr.combined <- merge(HGMM_seurat, y = PBMC_seurat)
+```
+
+# Subset for features observed in at least 20 cells
+```{r}
+filtFeatures <- FindTopFeatures(cr.combined,min.cutoff=20)
+cr.combined <- subset(cr.combined, features = VariableFeatures(filtFeatures))
+```
+
+# Re-compute peak-related QC metrics
+```{r}
+# Calculate FRiP
+cr.combined <- FRiP(
+  object = cr.combined,
+  assay = 'ATAC',
+  total.fragments = "fragments"
+)
+
+# Calculate signal over excluded regions
+cr.combined$blacklist_fraction <- FractionCountsInRegion(
+  object = cr.combined, 
+  assay = 'ATAC',
+  regions = blacklist_hg38
+)
+```
+
+# Split by sample into a list
+```{r}
+cr.list <- SplitObject(cr.combined, split.by="Sample")
+```
+
+# Iterate over sample list, subset based on QC metrics, and generate lsi embeddings
+```{r}
+for (i in 1:length(cr.list)) {
+	cr.list[[i]] <- subset(x = cr.list[[i]],
+		features = VariableFeatures(filtFeatures), 
+  		subset = nCount_ATAC > 1000 &
+    		nCount_ATAC < 100000 &
+    		FRiP > 0.15 &
+    		blacklist_fraction < 0.05 &
+    		nucleosome_signal < 4 &
+    		TSS.enrichment > 2
+		)
+
+	cr.list[[i]] <- FindTopFeatures(cr.list[[i]], min.cutoff = 'q0')
+	cr.list[[i]] <- RunTFIDF(cr.list[[i]], assay="ATAC")
+	cr.list[[i]] <- RunSVD(cr.list[[i]])
+	cr.list[[i]] <- RunUMAP(cr.list[[i]], reduction = "lsi", dims = 2:30)
+}
+```
+
+# Subset and process the combined dataset
+```{r}
+cr.combined <- subset(
+  x = cr.combined,
+  features = VariableFeatures(filtFeatures), 
+  subset = nCount_ATAC > 1000 &
+    nCount_ATAC < 100000 &
+    FRiP > 0.15 &
+    blacklist_fraction < 0.05 &
+    nucleosome_signal < 4 &
+    TSS.enrichment > 2
+)
+```
+
+# Get filtered dimensions
+```{r}
+table(cr.combined$Sample)
+
+
+lapply(cr.list, dim)
+```
+
+# Repeat here on the combined object
+```{r}
+cr.combined <- FindTopFeatures(cr.combined, min.cutoff = 'q0')
+cr.combined <- RunTFIDF(cr.combined, assay="ATAC")
+cr.combined <- RunSVD(cr.combined)
+cr.combined <- RunUMAP(cr.combined, reduction = "lsi", dims = 2:30)
+```
+
+# Integrate all data
+```{r}
+# Find integration anchors
+integration.anchors <- FindIntegrationAnchors(object.list = cr.list, 
+	anchor.features = rownames(cr.combined), 
+	reduction = "rlsi", 
+	dims = 2:30
+)
+
+# Integrate LSI embeddings
+# Arbitrarily reduced k.weight to 50 to get around "number of items to replace is not a multiple of replacement length" error observed elsewhere
+cellranger.integrated <- IntegrateEmbeddings(anchorset = integration.anchors, 
+	reductions = cr.combined[["lsi"]],
+	new.reduction.name = "integrated_lsi",
+	dims.to.integrate = 1:30,
+	k.weight = 50
+)
+```
+
+# Create a new UMAP using the integrated embeddings
+```{r}
+cellranger.integrated <- RunUMAP(cellranger.integrated, reduction = "integrated_lsi", dims = 2:30)
+DimPlot(cellranger.integrated, group.by = "Sample")
+```
+
+# Identify clusters
+```{r}
+cellranger.integrated <- FindNeighbors(object = cellranger.integrated, reduction = 'integrated_lsi', dims = 2:30)
+cellranger.integrated <- FindClusters(object = cellranger.integrated, verbose = FALSE, algorithm = 3, resolution = 0.5)
+DimPlot(object = cellranger.integrated, label = TRUE) + NoLegend()
+```
+
+
+# Compute gene activity matrix and insert this as a pseudo RNA assay
+```{r}
+Annotation(cellranger.integrated) <- annotations
+gene.activities <- GeneActivity(cellranger.integrated)
+
+# Add the gene activity matrix to the Seurat object as a new assay and normalize it
+cellranger.integrated[['RNA']] <- CreateAssayObject(counts = gene.activities)
+cellranger.integrated <- NormalizeData(
+  object = cellranger.integrated,
+  assay = 'RNA',
+  normalization.method = 'LogNormalize',
+  scale.factor = median(cellranger.integrated$nCount_RNA)
+)
+
+DefaultAssay(cellranger.integrated) <- 'RNA'
+```
+
+# Plot the same marker genes from Seurat vignette
+```{r fig.width=8}
+FeaturePlot(
+  object = cellranger.integrated,
+  features = c('MS4A1', 'CD3D', 'LEF1', 'NKG7', 'TREM1', 'LYZ'),
+  pt.size = 0.1,
+  max.cutoff = 'q95',
+  ncol = 3
+)
+```
+
+# Save workspace
+```{r echo=FALSE}
+save.image("../Cellranger_HGMM_PBMC_seurat_090222_QC_integrated.RData")
+```
+
+```{r eval=FALSE}
+save.image("Cellranger_HGMM_PBMC_seurat_090222_QC_integrated.RData")
+```
+

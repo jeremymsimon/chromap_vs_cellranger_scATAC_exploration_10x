@@ -1,0 +1,44 @@
+---
+title: "Concluding remarks"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+# Runtime
+This is the easiest comparison to make and conclusion to draw.
+
+### Cellranger
+* Total compute time: 41:59:57
+
+### Chromap
+* Total compute time: 1:53:13
+
+
+# Conclusions from comparative analyses performed here
+The Sankey plot and NMI values indicate the clustering is quite similar despite the differences in upstream data processing. 
+Further, the Gene Activity values (which are peak agnostic) were extremely highly correlated (nearly all >0.9). 
+This, combined with the fact that the chromap and cellranger counts underneath a unified set of features were also very highly correlated 
+(nearly all >0.9) strongly corroborates the data provided [in the chromap paper](https://www.nature.com/articles/s41467-021-26865-w). 
+This isn't surprising, but provides additional real-world evidence that the alignments performed by cellranger vs those by chromap are nearly identical. 
+
+The peak calls themselves were also very similar (~85% overlap), therefore these data strongly suggest that any differences in downstream clustering are likely attributable to the subtle differences in peaks called.
+
+Nonetheless, these data serve as a proof-of-principle that a chromap-based approach is not only feasible, but can largely capture the same information as cellranger in a tiny fraction of the runtime. 
+
+Additionally, these data illustrate something about which I frequently am asked: that integration procedures can preserve cell/sample-specific information.
+A fear shared by many experimentalists is that if we integrate e.g. treated and untreated cells, and some cell clusters are expected to be treatment specific, that those cell types will be lost in the process. 
+Here, B-lymphoblasts are seemingly different enough from the various cell types present in the PBMC pool, but integration doesn't force these clusters to overlap.
+We still see clusters specific to the various PBMC cell types, and the HGMM cell types are both retained and remain separated. 
+
+# Future questions
+* Can we improve upon peak calling such that we identify meaningful cell-type-specific and condition-specific regulatory elements without needing to cluster the cells first?
+* Does providing a known external atlas of regulatory elements help us?
+* Aside from [barcode translation](https://kb.10xgenomics.com/hc/en-us/articles/360049105612-Barcode-translation-in-Cell-Ranger-ARC), are any modifications to this workflow needed for scATAC+scRNA?
+* Signac's `FeatureMatrix` can be slow too. Are their equivalent but faster approaches for counting that we could utilize to build our cells x peaks matrices?
+
+# Comments
+Questions, comments, improvements, and general discussion are all welcome! Start a discussion [on github](https://github.com/jeremymsimon/chromap_vs_cellranger_scATAC_exploration_10x), email me, or [find me on Twitter](https://twitter.com/jeremy_m_simon)
+

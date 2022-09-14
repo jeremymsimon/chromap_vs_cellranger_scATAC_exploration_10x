@@ -1,0 +1,158 @@
+---
+title: "Signac: Integration and clustering of chromap quantifications"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+# Load packages and previously saved workspace
+```{r}
+library(tidyverse)
+library(GenomicRanges)
+library(Seurat)
+library(Signac)
+library(EnsDb.Hsapiens.v86)
+
+```
+
+```{r echo=FALSE}
+load("../cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100_seurat_090222_QC.RData")
+```
+```{r eval=FALSE}
+load("cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100_seurat_090222_QC.RData")
+```
+
+
+# Merge chromap seurat objects, subset, then split into a list
+```{r}
+chromap.combined <- merge(HGMM_10x_seurat,y = PBMC_10x_seurat)
+
+
+# Subset for features observed in at least 20 cells
+filtFeatures <- FindTopFeatures(chromap.combined,min.cutoff=20)
+chromap.combined <- subset(chromap.combined, features = VariableFeatures(filtFeatures))
+
+# Split by sample into a list
+chromap.list <- SplitObject(chromap.combined, split.by="Sample")
+```
+
+# Iterate over sample list, subset based on QC metrics, and generate lsi embeddings
+```{r}
+for (i in 1:length(chromap.list)) {
+	chromap.list[[i]] <- subset(x = chromap.list[[i]],
+		features = VariableFeatures(filtFeatures), 
+		subset = nCount_peaks > 1000 &
+		nCount_peaks < 100000 &
+		FRiP > 0.15 &
+		blacklist_fraction < 0.05 &
+		nucleosome_signal < 4 &
+		TSS.enrichment > 2
+		)
+
+	chromap.list[[i]] <- FindTopFeatures(chromap.list[[i]], min.cutoff = 'q0')
+	chromap.list[[i]] <- RunTFIDF(chromap.list[[i]], assay="peaks")
+	chromap.list[[i]] <- RunSVD(chromap.list[[i]])
+	chromap.list[[i]] <- RunUMAP(chromap.list[[i]], reduction = "lsi", dims = 2:30)
+}
+
+
+# Subset and process the combined dataset
+chromap.combined <- subset(
+  x = chromap.combined,
+  features = VariableFeatures(filtFeatures), 
+  subset = nCount_peaks > 1000 &
+    nCount_peaks < 100000 &
+    FRiP > 0.15 &
+    blacklist_fraction < 0.05 &
+    nucleosome_signal < 4 &
+    TSS.enrichment > 2
+)
+```
+
+# Get filtered dimensions
+```{r}
+table(chromap.combined$Sample)
+
+lapply(chromap.list, dim)
+
+```
+
+# Repeat here on the combined object
+```{r}
+chromap.combined <- FindTopFeatures(chromap.combined, min.cutoff = 'q0')
+chromap.combined <- RunTFIDF(chromap.combined, assay="peaks")
+chromap.combined <- RunSVD(chromap.combined)
+chromap.combined <- RunUMAP(chromap.combined, reduction = "lsi", dims = 2:30)
+```
+
+# Integrate all data
+```{r}
+# Find integration anchors
+integration.anchors <- FindIntegrationAnchors(object.list = chromap.list, 
+	anchor.features = rownames(chromap.combined), 
+	reduction = "rlsi", 
+	dims = 2:30
+)
+
+# Integrate LSI embeddings
+# Arbitrarily reduced k.weight to 50 to get around "number of items to replace is not a multiple of replacement length" error
+chromap.integrated <- IntegrateEmbeddings(anchorset = integration.anchors, 
+	reductions = chromap.combined[["lsi"]],
+	new.reduction.name = "integrated_lsi",
+	dims.to.integrate = 1:30,
+	k.weight = 50
+)
+```
+
+# Create a new UMAP using the integrated embeddings
+```{r}
+chromap.integrated <- RunUMAP(chromap.integrated, reduction = "integrated_lsi", dims = 2:30)
+DimPlot(chromap.integrated, group.by = "Sample")
+```
+
+# Identify clusters
+```{r}
+chromap.integrated <- FindNeighbors(object = chromap.integrated, reduction = 'integrated_lsi', dims = 2:30)
+chromap.integrated <- FindClusters(object = chromap.integrated, verbose = FALSE, algorithm = 3, resolution = 0.5)
+DimPlot(object = chromap.integrated, label = TRUE) + NoLegend()
+```
+
+
+# Compute gene activity matrix and insert this as a pseudo RNA assay
+```{r}
+gene.activities <- GeneActivity(chromap.integrated)
+
+# Add the gene activity matrix to the Seurat object as a new assay and normalize it
+chromap.integrated[['RNA']] <- CreateAssayObject(counts = gene.activities)
+chromap.integrated <- NormalizeData(
+  object = chromap.integrated,
+  assay = 'RNA',
+  normalization.method = 'LogNormalize',
+  scale.factor = median(chromap.integrated$nCount_RNA)
+)
+
+DefaultAssay(chromap.integrated) <- 'RNA'
+```
+
+# Plot the same marker genes from Seurat vignette
+```{r}
+FeaturePlot(
+  object = chromap.integrated,
+  features = c('MS4A1', 'CD3D', 'LEF1', 'NKG7', 'TREM1', 'LYZ'),
+  pt.size = 0.1,
+  max.cutoff = 'q95',
+  ncol = 3
+)
+```
+
+## Save workspace
+```{r echo=FALSE}
+save.image("../cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100_seurat_090222_QC_integrated.RData")
+```
+
+```{r eval=FALSE}
+save.image("cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100_seurat_090222_QC_integrated.RData")
+```
+

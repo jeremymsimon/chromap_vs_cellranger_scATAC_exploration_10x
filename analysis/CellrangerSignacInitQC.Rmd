@@ -1,0 +1,264 @@
+---
+title: "Signac: create data objects from cellranger quantifications, compute QC metrics"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+# Load packages and gene annotations
+```{r}
+library(tidyverse)
+library(GenomicRanges)
+library(Seurat)
+library(Signac)
+library(EnsDb.Hsapiens.v86)
+
+annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86)
+seqlevelsStyle(annotations) <- 'UCSC'
+```
+
+
+# PBMC
+## Import cellranger counts and metadata
+```{r echo=FALSE}
+PBMC_cr_counts <- Read10X_h5(filename = "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_PBMC_cellranger/outs/filtered_peak_bc_matrix.h5")
+```
+```{r eval=FALSE}
+PBMC_cr_counts <- Read10X_h5(filename = "10x_PBMC_cellranger/outs/filtered_peak_bc_matrix.h5")
+```
+
+```{r echo=FALSE}
+PBMC_cr_metadata <- read.csv(
+  file = "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_PBMC_cellranger/outs/singlecell.csv",
+  header = TRUE,
+  row.names = 1
+)
+```
+```{r eval=FALSE}
+PBMC_cr_metadata <- read.csv(
+  file = "10x_PBMC_cellranger/outs/singlecell.csv",
+  header = TRUE,
+  row.names = 1
+)
+```
+
+## Create chromatin assay and seurat object
+```{r echo=FALSE}
+PBMC_cr_chrom_assay <- CreateChromatinAssay(
+  counts = PBMC_cr_counts,
+  sep = c(":", "-"),
+  genome = 'hg38',
+  fragments = '/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_PBMC_cellranger/outs/fragments.tsv.gz',
+  min.cells = 10,
+  min.features = 200
+)
+```
+
+```{r eval=FALSE}
+PBMC_cr_chrom_assay <- CreateChromatinAssay(
+  counts = PBMC_cr_counts,
+  sep = c(":", "-"),
+  genome = 'hg38',
+  fragments = '10x_PBMC_cellranger/outs/fragments.tsv.gz',
+  min.cells = 10,
+  min.features = 200
+)
+```
+```{r}
+PBMC_cr_seurat <- CreateSeuratObject(
+  counts = PBMC_cr_chrom_assay,
+  assay = "peaks",
+  meta.data = PBMC_cr_metadata
+)
+```
+
+## Add gene annotation information to the object and prepend cell type on cell barcodes
+```{r}
+Annotation(PBMC_cr_seurat) <- annotations
+
+PBMC_cr_seurat$Sample <- "PBMC"
+PBMC_cr_seurat <- RenameCells(PBMC_cr_seurat, add.cell.id = "PBMC")
+```
+
+# HGMM
+## Import cellranger counts and metadata
+```{r echo=FALSE}
+HGMM_cr_counts <- Read10X_h5(filename = "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_HGMM_cellranger/outs/filtered_peak_bc_matrix.h5")
+```
+
+```{r eval=FALSE}
+HGMM_cr_counts <- Read10X_h5(filename = "10x_HGMM_cellranger/outs/filtered_peak_bc_matrix.h5")
+```
+
+```{r echo=FALSE}
+HGMM_cr_metadata <- read.csv(
+  file = "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_HGMM_cellranger/outs/singlecell.csv",
+  header = TRUE,
+  row.names = 1
+)
+```
+```{r eval=FALSE}
+HGMM_cr_metadata <- read.csv(
+  file = "10x_HGMM_cellranger/outs/singlecell.csv",
+  header = TRUE,
+  row.names = 1
+)
+```
+
+## Create chromatin assay and seurat object
+```{r echo=FALSE}
+HGMM_cr_chrom_assay <- CreateChromatinAssay(
+  counts = HGMM_cr_counts,
+  sep = c(":", "-"),
+  genome = 'hg38',
+  fragments = '/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_HGMM_cellranger/outs/fragments.tsv.gz',
+  min.cells = 10,
+  min.features = 200
+)
+```
+```{r eval=FALSE}
+HGMM_cr_chrom_assay <- CreateChromatinAssay(
+  counts = HGMM_cr_counts,
+  sep = c(":", "-"),
+  genome = 'hg38',
+  fragments = '10x_HGMM_cellranger/outs/fragments.tsv.gz',
+  min.cells = 10,
+  min.features = 200
+)
+```
+```{r}
+HGMM_cr_seurat <- CreateSeuratObject(
+  counts = HGMM_cr_chrom_assay,
+  assay = "peaks",
+  meta.data = HGMM_cr_metadata
+)
+```
+
+## Add gene annotation information to the object and prepend cell type on cell barcodes
+```{r}
+Annotation(HGMM_cr_seurat) <- annotations
+
+HGMM_cr_seurat$Sample <- "HGMM"
+HGMM_cr_seurat <- RenameCells(HGMM_cr_seurat, add.cell.id = "HGMM")
+```
+
+
+
+
+
+# Compute QC metrics
+## HGMM
+```{r echo=FALSE}
+HGMM_cr_path <- '/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_HGMM_cellranger/outs/fragments.tsv.gz'
+```
+```{r eval=FALSE}
+HGMM_cr_path <- '10x_HGMM_cellranger/outs/fragments.tsv.gz'
+```
+```{r}
+HGMM_cr_fragmentInfo <- CountFragments(HGMM_cr_path)
+rownames(HGMM_cr_fragmentInfo) <- paste0(HGMM_cr_seurat$Sample,"_",HGMM_cr_fragmentInfo$CB)
+
+# Attach cell metadata to seurat object
+HGMM_cr_seurat$fragments <- HGMM_cr_fragmentInfo[colnames(HGMM_cr_seurat), "frequency_count"]
+HGMM_cr_seurat$mononucleosomal <- HGMM_cr_fragmentInfo[colnames(HGMM_cr_seurat), "mononucleosomal"]
+HGMM_cr_seurat$nucleosome_free <- HGMM_cr_fragmentInfo[colnames(HGMM_cr_seurat), "nucleosome_free"]
+HGMM_cr_seurat$reads_count <- HGMM_cr_fragmentInfo[colnames(HGMM_cr_seurat), "reads_count"]
+
+# Calculate FRiP
+HGMM_cr_seurat <- FRiP(
+  object = HGMM_cr_seurat,
+  assay = 'peaks',
+  total.fragments = "fragments"
+)
+
+# Calculate signal over excluded regions
+HGMM_cr_seurat$blacklist_fraction <- FractionCountsInRegion(
+  object = HGMM_cr_seurat, 
+  assay = 'peaks',
+  regions = blacklist_hg38
+)
+
+# Compute nucleosome signal score per cell
+HGMM_cr_seurat <- NucleosomeSignal(HGMM_cr_seurat)
+
+# Compute TSS enrichment
+HGMM_cr_seurat <- TSSEnrichment(HGMM_cr_seurat, fast=FALSE)
+```
+
+### Plot TSS enrichment
+```{r}
+HGMM_cr_seurat$high.tss <- ifelse(HGMM_cr_seurat$TSS.enrichment > 2, 'High', 'Low')
+TSSPlot(HGMM_cr_seurat, group.by = 'high.tss') + NoLegend()
+```
+
+### Plot nucleosome fragment length periodicity for all cells
+```{r}
+HGMM_cr_seurat$nucleosome_group <- ifelse(HGMM_cr_seurat$nucleosome_signal > 4, 'NS > 4', 'NS < 4')
+FragmentHistogram(object = HGMM_cr_seurat, group.by = 'nucleosome_group')
+```
+
+
+
+## PBMC
+```{r echo=FALSE}
+PBMC_cr_path <- '/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_PBMC_cellranger/outs/fragments.tsv.gz'
+```
+```{r eval=FALSE}
+PBMC_cr_path <- '10x_PBMC_cellranger/outs/fragments.tsv.gz'
+```
+
+```{r}
+PBMC_cr_fragmentInfo <- CountFragments(PBMC_cr_path)
+rownames(PBMC_cr_fragmentInfo) <- paste0(PBMC_cr_seurat$Sample,"_",PBMC_cr_fragmentInfo$CB)
+
+# Attach cell metadata to seurat object
+PBMC_cr_seurat$fragments <- PBMC_cr_fragmentInfo[colnames(PBMC_cr_seurat), "frequency_count"]
+PBMC_cr_seurat$mononucleosomal <- PBMC_cr_fragmentInfo[colnames(PBMC_cr_seurat), "mononucleosomal"]
+PBMC_cr_seurat$nucleosome_free <- PBMC_cr_fragmentInfo[colnames(PBMC_cr_seurat), "nucleosome_free"]
+PBMC_cr_seurat$reads_count <- PBMC_cr_fragmentInfo[colnames(PBMC_cr_seurat), "reads_count"]
+
+# Calculate FRiP
+PBMC_cr_seurat <- FRiP(
+  object = PBMC_cr_seurat,
+  assay = 'peaks',
+  total.fragments = "fragments"
+)
+
+# Calculate signal over excluded regions
+PBMC_cr_seurat$blacklist_fraction <- FractionCountsInRegion(
+  object = PBMC_cr_seurat, 
+  assay = 'peaks',
+  regions = blacklist_hg38
+)
+
+# Compute nucleosome signal score per cell
+PBMC_cr_seurat <- NucleosomeSignal(PBMC_cr_seurat)
+
+# Compute TSS enrichment
+PBMC_cr_seurat <- TSSEnrichment(PBMC_cr_seurat, fast=FALSE)
+```
+
+## Plot TSS enrichment
+```{r}
+PBMC_cr_seurat$high.tss <- ifelse(PBMC_cr_seurat$TSS.enrichment > 2, 'High', 'Low')
+TSSPlot(PBMC_cr_seurat, group.by = 'high.tss') + NoLegend()
+```
+
+## Plot nucleosome fragment length periodicity for all cells
+```{r}
+PBMC_cr_seurat$nucleosome_group <- ifelse(PBMC_cr_seurat$nucleosome_signal > 4, 'NS > 4', 'NS < 4')
+FragmentHistogram(object = PBMC_cr_seurat, group.by = 'nucleosome_group')
+```
+
+
+# Save workspace
+```{r echo=FALSE}
+save.image("../Cellranger_HGMM_PBMC_seurat_090222_QC.RData")
+```
+
+```{r eval=FALSE}
+save.image("Cellranger_HGMM_PBMC_seurat_090222_QC.RData")
+```
+

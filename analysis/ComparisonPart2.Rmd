@@ -1,0 +1,361 @@
+---
+title: "Comparison of chromap and cellranger quantifications over master union peak set"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+# Load packages and saved workspaces from chromap and cellranger processing
+```{r}
+library(tidyverse)
+library(GenomicRanges)
+library(Seurat)
+library(Signac)
+library(EnsDb.Hsapiens.v86)
+library(stringi)
+library(plyranges)
+```
+
+# Create one unified union set of all peak coordinates (both approaches)
+## Load in all original peaks
+```{r echo=FALSE}
+HGMM.cr.peaks.all <- read.table("/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_HGMM_cellranger/outs/peaks.bed")
+colnames(HGMM.cr.peaks.all) <- c("chr","start","end")
+HGMM.cr.peaks.all.gr <- makeGRangesFromDataFrame(HGMM.cr.peaks.all)
+HGMM.cr.peaks.all.gr <- keepStandardChromosomes(HGMM.cr.peaks.all.gr,pruning.mode="coarse")
+
+PBMC.cr.peaks.all <- read.table("/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_PBMC_cellranger/outs/peaks.bed")
+colnames(PBMC.cr.peaks.all) <- c("chr","start","end")
+PBMC.cr.peaks.all.gr <- makeGRangesFromDataFrame(PBMC.cr.peaks.all)
+PBMC.cr.peaks.all.gr <- keepStandardChromosomes(PBMC.cr.peaks.all.gr,pruning.mode="coarse")
+```
+
+```{r eval=FALSE}
+HGMM.cr.peaks.all <- read.table("10x_HGMM_cellranger/outs/peaks.bed")
+colnames(HGMM.cr.peaks.all) <- c("chr","start","end")
+HGMM.cr.peaks.all.gr <- makeGRangesFromDataFrame(HGMM.cr.peaks.all)
+HGMM.cr.peaks.all.gr <- keepStandardChromosomes(HGMM.cr.peaks.all.gr,pruning.mode="coarse")
+
+PBMC.cr.peaks.all <- read.table("10x_PBMC_cellranger/outs/peaks.bed")
+colnames(PBMC.cr.peaks.all) <- c("chr","start","end")
+PBMC.cr.peaks.all.gr <- makeGRangesFromDataFrame(PBMC.cr.peaks.all)
+PBMC.cr.peaks.all.gr <- keepStandardChromosomes(PBMC.cr.peaks.all.gr,pruning.mode="coarse")
+```
+
+## Make union set of all cellranger peaks with plyranges
+```{r}
+cr.union.all.gr <- union_ranges(HGMM.cr.peaks.all.gr,PBMC.cr.peaks.all.gr)
+```
+
+## Read in chromap-MACS2 peaks (already a union of both samples)
+```{r echo=FALSE}
+cm.peaks.all <- read.table("../10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks.bed")
+colnames(cm.peaks.all) <- c("chr","start","end")
+cm.peaks.all.gr <- makeGRangesFromDataFrame(cm.peaks.all)
+cm.peaks.all.gr <- keepStandardChromosomes(cm.peaks.all.gr,pruning.mode="coarse")
+```
+```{r eval=FALSE}
+cm.peaks.all <- read.table("10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks.bed")
+colnames(cm.peaks.all) <- c("chr","start","end")
+cm.peaks.all.gr <- makeGRangesFromDataFrame(cm.peaks.all)
+cm.peaks.all.gr <- keepStandardChromosomes(cm.peaks.all.gr,pruning.mode="coarse")
+```
+
+## Read in cCRE peaks to join
+```{r echo=FALSE}
+cre <- read.table("/proj/jmsimon/alevinForATAC/cCRE_hg38.bed")
+colnames(cre) <- c("chr","start","end")
+cre.gr <- makeGRangesFromDataFrame(cre)
+cre.gr <- keepStandardChromosomes(cre.gr,pruning.mode="coarse")
+```
+```{r eval=FALSE}
+cre <- read.table("cCRE_hg38.bed")
+colnames(cre) <- c("chr","start","end")
+cre.gr <- makeGRangesFromDataFrame(cre)
+cre.gr <- keepStandardChromosomes(cre.gr,pruning.mode="coarse")
+```
+
+## Create master union set
+```{r}
+all.union <- union_ranges(union_ranges(cr.union.all.gr,cm.peaks.all.gr), cre.gr)
+
+# Filter out bad peaks based on length
+peakwidths <- width(all.union)
+all.union <- all.union[peakwidths  < 10000 & peakwidths > 20]
+```
+
+
+
+# Compute cellranger-derived coverage over this master union peak set
+## Extract gene annotations from EnsDb
+```{r}
+annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86)
+seqlevelsStyle(annotations) <- 'UCSC'
+```
+## Import PBMC cellranger data
+```{r echo=FALSE}
+PBMC_cr_counts <- Read10X_h5(filename = "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_PBMC_cellranger/outs/filtered_peak_bc_matrix.h5")
+
+PBMC_cr_metadata <- read.csv(
+  file = "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_PBMC_cellranger/outs/singlecell.csv",
+  header = TRUE,
+  row.names = 1
+)
+
+PBMC_cr_chrom_assay <- CreateChromatinAssay(
+  counts = PBMC_cr_counts,
+  sep = c(":", "-"),
+  genome = 'hg38',
+  fragments = '/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_PBMC_cellranger/outs/fragments.tsv.gz',
+  min.cells = 10,
+  min.features = 200
+)
+
+PBMC_cr_seurat <- CreateSeuratObject(
+  counts = PBMC_cr_chrom_assay,
+  assay = "peaks",
+  meta.data = PBMC_cr_metadata
+)
+```
+```{r eval=FALSE}
+PBMC_cr_counts <- Read10X_h5(filename = "10x_PBMC_cellranger/outs/filtered_peak_bc_matrix.h5")
+
+PBMC_cr_metadata <- read.csv(
+  file = "10x_PBMC_cellranger/outs/singlecell.csv",
+  header = TRUE,
+  row.names = 1
+)
+
+PBMC_cr_chrom_assay <- CreateChromatinAssay(
+  counts = PBMC_cr_counts,
+  sep = c(":", "-"),
+  genome = 'hg38',
+  fragments = '10x_PBMC_cellranger/outs/fragments.tsv.gz',
+  min.cells = 10,
+  min.features = 200
+)
+
+PBMC_cr_seurat <- CreateSeuratObject(
+  counts = PBMC_cr_chrom_assay,
+  assay = "peaks",
+  meta.data = PBMC_cr_metadata
+)
+```
+
+## Add gene annotation information to the object and prepend cell type on cell barcodes
+```{r}
+Annotation(PBMC_cr_seurat) <- annotations
+
+PBMC_cr_seurat$Sample <- "PBMC"
+PBMC_cr_seurat <- RenameCells(PBMC_cr_seurat, add.cell.id = "PBMC")
+```
+
+## Import HGMM cellranger data
+```{r echo=FALSE}
+HGMM_cr_counts <- Read10X_h5(filename = "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_HGMM_cellranger/outs/filtered_peak_bc_matrix.h5")
+
+HGMM_cr_metadata <- read.csv(
+  file = "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_HGMM_cellranger/outs/singlecell.csv",
+  header = TRUE,
+  row.names = 1
+)
+
+HGMM_cr_chrom_assay <- CreateChromatinAssay(
+  counts = HGMM_cr_counts,
+  sep = c(":", "-"),
+  genome = 'hg38',
+  fragments = '/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_HGMM_cellranger/outs/fragments.tsv.gz',
+  min.cells = 10,
+  min.features = 200
+)
+
+HGMM_cr_seurat <- CreateSeuratObject(
+  counts = HGMM_cr_chrom_assay,
+  assay = "peaks",
+  meta.data = HGMM_cr_metadata
+)
+```
+```{r eval=FALSE}
+HGMM_cr_counts <- Read10X_h5(filename = "10x_HGMM_cellranger/outs/filtered_peak_bc_matrix.h5")
+
+HGMM_cr_metadata <- read.csv(
+  file = "10x_HGMM_cellranger/outs/singlecell.csv",
+  header = TRUE,
+  row.names = 1
+)
+
+HGMM_cr_chrom_assay <- CreateChromatinAssay(
+  counts = HGMM_cr_counts,
+  sep = c(":", "-"),
+  genome = 'hg38',
+  fragments = '10x_HGMM_cellranger/outs/fragments.tsv.gz',
+  min.cells = 10,
+  min.features = 200
+)
+
+HGMM_cr_seurat <- CreateSeuratObject(
+  counts = HGMM_cr_chrom_assay,
+  assay = "peaks",
+  meta.data = HGMM_cr_metadata
+)
+
+```
+## Add gene annotation information to the object and prepend cell type on cell barcodes
+```{r}
+Annotation(HGMM_cr_seurat) <- annotations
+
+HGMM_cr_seurat$Sample <- "HGMM"
+HGMM_cr_seurat <- RenameCells(HGMM_cr_seurat, add.cell.id = "HGMM")
+```
+
+
+## Compute feature matrix for master union set of peaks
+```{r}
+HGMM.counts <- FeatureMatrix(
+  fragments = Fragments(HGMM_cr_seurat),
+  features = all.union,
+  cells = colnames(HGMM_cr_seurat)
+)
+
+PBMC.counts <- FeatureMatrix(
+  fragments = Fragments(PBMC_cr_seurat),
+  features = all.union,
+  cells = colnames(PBMC_cr_seurat)
+)
+```
+## Create new chromatin assays and seurat objects
+```{r}
+HGMM_assay <- CreateChromatinAssay(HGMM.counts, fragments = Fragments(HGMM_cr_seurat))
+HGMM_seurat <- CreateSeuratObject(HGMM_assay, assay = "ATAC", meta.data=as.data.frame(HGMM_cr_seurat@meta.data))
+HGMM_seurat$Sample <- "HGMM"
+
+PBMC_assay <- CreateChromatinAssay(PBMC.counts, fragments = Fragments(PBMC_cr_seurat))
+PBMC_seurat <- CreateSeuratObject(PBMC_assay, assay = "ATAC", meta.data=as.data.frame(PBMC_cr_seurat@meta.data))
+PBMC_seurat$Sample <- "PBMC"
+
+cellranger.combined <- merge(HGMM_seurat, y = PBMC_seurat)
+```
+
+
+# Compute chromap-derived coverage over this master union peak set
+## Compute for PBMC chromap data
+```{r echo=FALSE}
+PBMC_10x_path <- "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_PBMC_chromap_fragments.tsv.gz"
+PBMC_10x_cells <- read_tsv(PBMC_10x_path,col_names=c("chr","start","stop","cell","support"),col_types=c("-","-","-","-","c"),col_select="cell") %>% pull(cell) %>% unique()
+names(x = PBMC_10x_cells) <- paste0("PBMC_", PBMC_10x_cells)
+PBMC_10x_frags <- CreateFragmentObject(path = PBMC_10x_path, cells = PBMC_10x_cells, max.lines=NULL)
+PBMC_10x_mat <- FeatureMatrix(
+  fragments = PBMC_10x_frags,
+  features = all.union,
+  process_n = 20000,
+  sep = c("-", "-"),
+  verbose = TRUE
+)
+PBMC_10x_assay <- CreateChromatinAssay(PBMC_10x_mat, fragments = PBMC_10x_frags, genome = 'hg38', min.features = 500)
+PBMC_10x_seurat <- CreateSeuratObject(PBMC_10x_assay, assay = "peaks")
+PBMC_10x_seurat$Sample <- "PBMC"
+```
+```{r eval=FALSE}
+PBMC_10x_path <- "10x_PBMC_chromap_fragments.tsv.gz"
+PBMC_10x_cells <- read_tsv(PBMC_10x_path,col_names=c("chr","start","stop","cell","support"),col_types=c("-","-","-","-","c"),col_select="cell") %>% pull(cell) %>% unique()
+names(x = PBMC_10x_cells) <- paste0("PBMC_", PBMC_10x_cells)
+PBMC_10x_frags <- CreateFragmentObject(path = PBMC_10x_path, cells = PBMC_10x_cells, max.lines=NULL)
+PBMC_10x_mat <- FeatureMatrix(
+  fragments = PBMC_10x_frags,
+  features = all.union,
+  process_n = 20000,
+  sep = c("-", "-"),
+  verbose = TRUE
+)
+PBMC_10x_assay <- CreateChromatinAssay(PBMC_10x_mat, fragments = PBMC_10x_frags, genome = 'hg38', min.features = 500)
+PBMC_10x_seurat <- CreateSeuratObject(PBMC_10x_assay, assay = "peaks")
+PBMC_10x_seurat$Sample <- "PBMC"
+```
+
+## Compute for HGMM chromap data
+```{r echo=FALSE}
+HGMM_10x_path <- "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_HGMM_chromap_fragments.tsv.gz"
+HGMM_10x_cells <- read_tsv(HGMM_10x_path,col_names=c("chr","start","stop","cell","support"),col_types=c("-","-","-","-","c"),col_select="cell") %>% pull(cell) %>% unique()
+names(x = HGMM_10x_cells) <- paste0("HGMM_", HGMM_10x_cells)
+HGMM_10x_frags <- CreateFragmentObject(path = HGMM_10x_path, cells = HGMM_10x_cells, max.lines=NULL)
+HGMM_10x_mat <- FeatureMatrix(
+  fragments = HGMM_10x_frags,
+  features = all.union,
+  process_n = 20000,
+  sep = c("-", "-"),
+  verbose = TRUE
+)
+HGMM_10x_assay <- CreateChromatinAssay(HGMM_10x_mat, fragments = HGMM_10x_frags, genome = 'hg38', min.features = 500)
+HGMM_10x_seurat <- CreateSeuratObject(HGMM_10x_assay, assay = "peaks")
+HGMM_10x_seurat$Sample <- "HGMM"
+```
+```{r eval=FALSE}
+HGMM_10x_path <- "10x_HGMM_chromap_fragments.tsv.gz"
+HGMM_10x_cells <- read_tsv(HGMM_10x_path,col_names=c("chr","start","stop","cell","support"),col_types=c("-","-","-","-","c"),col_select="cell") %>% pull(cell) %>% unique()
+names(x = HGMM_10x_cells) <- paste0("HGMM_", HGMM_10x_cells)
+HGMM_10x_frags <- CreateFragmentObject(path = HGMM_10x_path, cells = HGMM_10x_cells, max.lines=NULL)
+HGMM_10x_mat <- FeatureMatrix(
+  fragments = HGMM_10x_frags,
+  features = all.union,
+  process_n = 20000,
+  sep = c("-", "-"),
+  verbose = TRUE
+)
+HGMM_10x_assay <- CreateChromatinAssay(HGMM_10x_mat, fragments = HGMM_10x_frags, genome = 'hg38', min.features = 500)
+HGMM_10x_seurat <- CreateSeuratObject(HGMM_10x_assay, assay = "peaks")
+HGMM_10x_seurat$Sample <- "HGMM"
+```
+
+## Merge chromap objects
+```{r}
+chromap.combined <- merge(HGMM_10x_seurat, y = PBMC_10x_seurat)
+```
+
+
+
+
+
+# Compare coverage from both approaches
+## Rename cellranger cell names
+```{r}
+cr.names <- colnames(cellranger.combined)
+cr.newnames <- str_replace_all(cr.names,"-1","")
+cellranger.combined <- RenameCells(cellranger.combined,new.names = cr.newnames)
+```
+
+## Take reverse complement of chromap barcode sequences
+```{r}
+cm.names <- colnames(chromap.combined)
+
+snames <- str_replace_all(cm.names,"_.+","")
+seq <- str_replace_all(cm.names,".+_(.+)","\\1")
+rc <- stringi::stri_reverse(chartr(old="ATGC", new="TACG", seq))
+cm.newnames <- paste0(snames,"_",rc)
+chromap.combined <- RenameCells(chromap.combined, new.names = cm.newnames)
+```
+
+## Reduce each matrix down to set of common barcodes and features
+```{r}
+intercells <- intersect(colnames(cellranger.combined),colnames(chromap.combined))
+intergenes <- intersect(rownames(cellranger.combined),rownames(chromap.combined))
+
+cr.subset <- cellranger.combined@assays$ATAC@counts[intergenes,intercells]
+cm.subset <- chromap.combined@assays$peaks@counts[intergenes,intercells]
+```
+
+## Compute cell-by-cell correlations between cellranger and chromap feature coverage
+Performs slowly with a for-loop, however we do not want to densify our sparse matrices here
+```{r}
+cors <- rep(NA,length(intercells))
+
+for(i in 1:length(intercells)) {
+	cors[i] <- cor(as.numeric(cr.subset[,i]), as.numeric(cm.subset[,i]),method="spearman")
+}
+```
+
+## Draw histogram of cell-by-cell correlations based on peak signal
+```{r}
+hist(cors,xlab="Spearman correlation",main="Union peak set correlations, Cellranger vs Chromap, common cells")
+```

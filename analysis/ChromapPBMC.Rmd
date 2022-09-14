@@ -1,0 +1,28 @@
+---
+title: "Run chromap: PBMC"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+# Run chromap v0.1
+
+```{bash eval=FALSE}
+# Create index
+chromap -i -r hg38.fa -o hg38.chromap.index
+
+# Run chromap
+chromap -t 4 \
+	--preset atac \
+	-x hg38.chromap.index \
+	-r hg38.fa \
+	-1 10k_pbmc_ATACv2_nextgem_Chromium_Controller_fastqs/10k_pbmc_ATACv2_nextgem_Chromium_Controller_S3_L001_R1_001.fastq.gz,10k_pbmc_ATACv2_nextgem_Chromium_Controller_fastqs/10k_pbmc_ATACv2_nextgem_Chromium_Controller_S3_L002_R1_001.fastq.gz \
+	-2 10k_pbmc_ATACv2_nextgem_Chromium_Controller_fastqs/10k_pbmc_ATACv2_nextgem_Chromium_Controller_S3_L001_R3_001.fastq.gz,10k_pbmc_ATACv2_nextgem_Chromium_Controller_fastqs/10k_pbmc_ATACv2_nextgem_Chromium_Controller_S3_L002_R3_001.fastq.gz \
+	-o 10x_PBMC_chromap_fragments.tsv \
+	-b 10k_pbmc_ATACv2_nextgem_Chromium_Controller_fastqs/10k_pbmc_ATACv2_nextgem_Chromium_Controller_S3_L001_R2_001.fastq.gz,10k_pbmc_ATACv2_nextgem_Chromium_Controller_fastqs/10k_pbmc_ATACv2_nextgem_Chromium_Controller_S3_L002_R2_001.fastq.gz
+
+```
+# Runtime info
+## Elapsed time: 01:04:24

@@ -1,5 +1,5 @@
 ---
-title: "Home"
+title: "10x scATAC-seq processing and analysis: Comparison of chromap vs cellranger-atac using public PBMC and HGMM data"
 site: workflowr::wflow_site
 output:
   workflowr::wflow_html:
@@ -8,4 +8,75 @@ editor_options:
   chunk_output_type: console
 ---
 
-Welcome to my research website.
+# Summary
+
+This site contains the code and results of my comparative analysis of [chromap v0.1](https://github.com/haowenz/chromap) vs [cellranger-atac v2.0.0](https://support.10xgenomics.com/single-cell-atac/software/pipelines/latest/using/count) in the processing and analysis of 10x scATAC-seq data.
+
+For illustration purposes, I utilize publicly-accessible 10x scATAC-seq data from PBMCs and HGMM (GM12878 B-lymphocytes).
+
+All the code and results of this analysis are available from GitHub at https://github.com/jeremymsimon/chromap_vs_cellranger_scATAC_exploration_10x. 
+
+Follow the links below to access different pieces of the analysis.
+
+# Motivation
+
+My personal preference is to support open-source software whenever possible, while being cognizant of computational efficiency. 
+`Cellranger` is rather slow (runtimes included in the relevant chapter below), in part because it does more downstream analysis than I desire (clustering, marker gene/region detection, etc). 
+I also like my approaches to remain flexible and modular such that new versions and tools can be easily incorporated as they are introduced. 
+
+`Chromap` is one such new approach to align and pre-process scATAC-seq (and other) data very quickly. 
+It by default outputs a fragments file [akin to cellranger](https://support.10xgenomics.com/single-cell-atac/software/pipelines/latest/output/fragments), 
+which contains the chromosome, start, and end coordinates of aligned fragments, along with the cellular barcode associated with that fragment, 
+and the number of read pairs associated with that fragment. 
+[The associated manuscript](https://www.nature.com/articles/s41467-021-26865-w) states it is over 10 times (ironically, 10x, lol) faster than traditional approaches e.g. `cellranger`. 
+Their paper does a great job already of comparing the alignments and resulting clusters to conventional approaches, so that should be your starting point before diving into what I've done here. 
+The reason for my duplicating some of those efforts here is because A) their approach utilized [`MAESTRO`](https://liulab-dfci.github.io/MAESTRO/) as an intermediate for all processing,
+and B) they did not utilize a dataset with multiple conditions or replicates. 
+Although `MAESTRO` is itself a very useful tool, I wished to take either the `cellranger` or `chromap` outputs and take a more direct path to R. 
+Here, I utilize the [`Signac`](https://satijalab.org/signac/)/[`Seurat`](https://satijalab.org/seurat/) framework, but the logic should be generalizable to other ecosystems.
+
+Though to my knowledge this hasn't been fully demonstrated in the literature, I also wish to incorporate an [atlas of accessible chromatin from 222 human cell types](https://www.cell.com/cell/fulltext/S0092-8674(21)01279-4). 
+The rationale here is that peak-calling on one entire sample at once can miss accessible regions specific to rare cell types or that may be condition specific.
+As an analogy, for a differential splicing analysis, we may utilize a database of known as well as de novo detected splice junctions unique to our data.
+This is my thinking here - that we can increase our power to detect important regulatory elements by utilizing genomic loci known to play a regulatory role
+alongside regions that may be important in our own data. This sort of approach is supported in `MAESTRO` with `--custompeak`, so other groups may have a similar philosophy. 
+
+There are certainly other ways of aligning scATAC-seq reads, quantifying signal across the genome, 
+and identifying critical regulatory elements for downstream analysis using methods not used or mentioned here. 
+The comparative analysis presented here is not meant to be comprehensive or definitive, 
+nor will I claim my approach is the best or the right-est or the efficient-est. 
+
+The analysis presented here merely serves as a proof-of-principle that a `cellranger`-independent approach is feasible, 
+that `chromap` seems like a viable alternative, and that this framework can serve as the foundation for future improvements in peak-calling and feature selection.
+
+# Analysis Overview
+
+1. [scATAC-seq data download](DataDownload.html)
+
+2. Running cellranger
+	a. [PBMC](CellrangerPBMC.html)
+	b. [HGMM](CellrangerHGMM.html)
+
+3. Running chromap
+	a. [PBMC](ChromapPBMC.html)
+	b. [HGMM](ChromapHGMM.html)
+	c. [Compressing fragments files for downstream](chromapCompression.html)
+
+4. Peak-calling on chromap alignments
+	a. [Running MACS2](MACS2.html)
+	b. [Creation of union set for downstream analysis](UnionPeaks.html)
+
+5. Analysis of chromap data in R
+	a. [Basic processing in Signac](ChromapSignacInit.html)
+	b. [Compute QC metrics](ChromapSignacQC.html)
+	c. [Integration, clustering, and estimating Gene Activity](ChromapSignacIntegration.html)
+
+6. Analysis of cellranger data in R
+	a. [Basic processing and QC](CellrangerSignacInitQC.html)
+	b. [Integration and clustering](CellrangerSignacIntegration.html)
+	
+7. Comparative analyses
+	a. [Cluster memberships, gene activity, and peak overlaps: approach-specific peaks](ComparisonPart1.html)
+	b. [Signal concordance under one unified peak set for both approaches](ComparisonPart2.html)
+
+8. [Conclusions](Conclusions.html)

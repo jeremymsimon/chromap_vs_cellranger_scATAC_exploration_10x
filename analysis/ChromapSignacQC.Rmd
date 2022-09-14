@@ -1,0 +1,133 @@
+---
+title: "Signac: Compute QC metrics on chromap quantifications"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+# Load packages and previously saved workspace
+```{r}
+library(tidyverse)
+library(GenomicRanges)
+library(Seurat)
+library(Signac)
+library(EnsDb.Hsapiens.v86)
+
+```
+
+```{r echo=FALSE}
+load("../cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100_seurat_090222.RData")
+```
+```{r eval=FALSE}
+load("cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100_seurat_090222.RData")
+```
+
+
+# HGMM
+## Compute QC metrics
+```{r}
+HGMM_10x_fragmentInfo <- CountFragments(HGMM_10x_path)
+rownames(HGMM_10x_fragmentInfo) <- paste0(HGMM_10x_seurat$Sample,"_",HGMM_10x_fragmentInfo$CB)
+
+# Attach cell metadata to seurat object
+HGMM_10x_seurat$fragments <- HGMM_10x_fragmentInfo[colnames(HGMM_10x_seurat), "frequency_count"]
+HGMM_10x_seurat$mononucleosomal <- HGMM_10x_fragmentInfo[colnames(HGMM_10x_seurat), "mononucleosomal"]
+HGMM_10x_seurat$nucleosome_free <- HGMM_10x_fragmentInfo[colnames(HGMM_10x_seurat), "nucleosome_free"]
+HGMM_10x_seurat$reads_count <- HGMM_10x_fragmentInfo[colnames(HGMM_10x_seurat), "reads_count"]
+
+# Calculate FRiP
+HGMM_10x_seurat <- FRiP(
+  object = HGMM_10x_seurat,
+  assay = 'peaks',
+  total.fragments = "fragments"
+)
+
+# Calculate signal over excluded regions
+HGMM_10x_seurat$blacklist_fraction <- FractionCountsInRegion(
+  object = HGMM_10x_seurat, 
+  assay = 'peaks',
+  regions = blacklist_hg38
+)
+
+# Compute nucleosome signal score per cell
+HGMM_10x_seurat <- NucleosomeSignal(HGMM_10x_seurat)
+
+# Compute TSS enrichment
+Annotation(HGMM_10x_seurat) <- annotations
+HGMM_10x_seurat <- TSSEnrichment(HGMM_10x_seurat, fast=FALSE)
+```
+
+## Plot TSS enrichment
+```{r}
+HGMM_10x_seurat$high.tss <- ifelse(HGMM_10x_seurat$TSS.enrichment > 2, 'High', 'Low')
+TSSPlot(HGMM_10x_seurat, group.by = 'high.tss') + NoLegend()
+```
+
+## Plot nucleosome fragment length periodicity for all cells
+```{r}
+HGMM_10x_seurat$nucleosome_group <- ifelse(HGMM_10x_seurat$nucleosome_signal > 4, 'NS > 4', 'NS < 4')
+FragmentHistogram(object = HGMM_10x_seurat, group.by = 'nucleosome_group')
+```
+
+
+
+
+
+
+# PBMC
+## Compute QC metrics
+```{r}
+PBMC_10x_fragmentInfo <- CountFragments(PBMC_10x_path)
+rownames(PBMC_10x_fragmentInfo) <- paste0(PBMC_10x_seurat$Sample,"_",PBMC_10x_fragmentInfo$CB)
+
+# Attach cell metadata to seurat object
+PBMC_10x_seurat$fragments <- PBMC_10x_fragmentInfo[colnames(PBMC_10x_seurat), "frequency_count"]
+PBMC_10x_seurat$mononucleosomal <- PBMC_10x_fragmentInfo[colnames(PBMC_10x_seurat), "mononucleosomal"]
+PBMC_10x_seurat$nucleosome_free <- PBMC_10x_fragmentInfo[colnames(PBMC_10x_seurat), "nucleosome_free"]
+PBMC_10x_seurat$reads_count <- PBMC_10x_fragmentInfo[colnames(PBMC_10x_seurat), "reads_count"]
+
+# Calculate FRiP
+PBMC_10x_seurat <- FRiP(
+  object = PBMC_10x_seurat,
+  assay = 'peaks',
+  total.fragments = "fragments"
+)
+
+# Calculate signal over excluded regions
+PBMC_10x_seurat$blacklist_fraction <- FractionCountsInRegion(
+  object = PBMC_10x_seurat, 
+  assay = 'peaks',
+  regions = blacklist_hg38
+)
+
+# Compute nucleosome signal score per cell
+PBMC_10x_seurat <- NucleosomeSignal(PBMC_10x_seurat)
+
+# Compute TSS enrichment
+Annotation(PBMC_10x_seurat) <- annotations
+PBMC_10x_seurat <- TSSEnrichment(PBMC_10x_seurat, fast=FALSE)
+```
+
+## Plot TSS enrichment
+```{r}
+PBMC_10x_seurat$high.tss <- ifelse(PBMC_10x_seurat$TSS.enrichment > 2, 'High', 'Low')
+TSSPlot(PBMC_10x_seurat, group.by = 'high.tss') + NoLegend()
+```
+
+# Plot nucleosome fragment length periodicity for all cells
+```{r}
+PBMC_10x_seurat$nucleosome_group <- ifelse(PBMC_10x_seurat$nucleosome_signal > 4, 'NS > 4', 'NS < 4')
+FragmentHistogram(object = PBMC_10x_seurat, group.by = 'nucleosome_group')
+```
+
+## Save workspace
+```{r echo=FALSE}
+save.image("../cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100_seurat_090222_QC.RData")
+```
+
+```{r eval=FALSE}
+save.image("cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100_seurat_090222_QC.RData")
+```
+

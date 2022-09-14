@@ -1,0 +1,32 @@
+---
+title: "Creation of a union set of peaks"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+# Create union set for both samples
+
+```{bash eval=FALSE}
+# Create union set
+cat *chromap*eak | cut -f 1,2,3 | bedtools sort -i stdin | bedtools merge -i stdin > 10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks.bed
+```
+
+# Merge with cCREs from single-cell survey
+
+```{bash eval=FALSE}
+# Download cCREs associated with Zhang. et al 2021 scATAC atlas study
+curl -O http://renlab.sdsc.edu/kai/Key_Processed_Data/cCRE_by_cell_type/cCREs.bed.gz
+
+# Decompress
+gunzip cCREs.bed
+
+# Rename them for clarity on reference genome build
+mv cCREs.bed cCREs_hg38.bed
+
+# Now merge our above peak calls with these cCREs, allowing regions within 100bp to merge
+cat 10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks.bed cCRE_hg38.bed | bedtools sort -i stdin | bedtools merge -d 100 -i stdin > cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100.bed
+```
+

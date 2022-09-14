@@ -1,0 +1,45 @@
+---
+title: "Peak calling on chromap alignments"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+# Run MACS2 v2.1.2 on each sample to get a loose pseudobulk set of peaks
+These parameters [mirror what MAESTRO performs](https://github.com/liulab-dfci/MAESTRO/blob/master/MAESTRO/Snakemake/scATAC/rules/sc_atac_peak_call.smk), except with looser FDR cutoff, and at least as of 2022-08-22
+
+```{bash eval=FALSE}
+# HGMM
+macs2 callpeak \
+	-f BEDPE \
+	-g hs \
+	--nomodel \
+	--extsize 50 \
+	--keep-dup all \
+	-q 0.1 \
+	-t 10x_HGMM_chromap_fragments.tsv \
+	-n 10x_HGMM_chromap_fragments_MACS_q01
+
+# PBMC
+macs2 callpeak \
+	-f BEDPE \
+	-g hs \
+	--nomodel \
+	--extsize 50 \
+	--keep-dup all \
+	-q 0.1 \
+	-t 10x_PBMC_chromap_fragments.tsv \
+	-n 10x_PBMC_chromap_fragments_MACS_q01
+
+```
+
+
+
+
+
+
+
+
+

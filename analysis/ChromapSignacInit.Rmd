@@ -1,0 +1,123 @@
+---
+title: "Signac: create data objects from chromap quantifications"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+
+# Load genome annotations
+```{r}
+library(tidyverse)
+library(GenomicRanges)
+library(Seurat)
+library(Signac)
+library(EnsDb.Hsapiens.v86)
+
+annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86)
+seqlevelsStyle(annotations) <- 'UCSC'
+genome(annotations) <- "hg38"
+```
+
+# Load peaks as GRanges object
+```{r echo=FALSE}
+p <- as.data.frame(read.table("../cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100.bed",header=F,sep="\t"))
+colnames(p) <- c("chr","start","stop")
+peaks <- makeGRangesFromDataFrame(p)
+```
+
+```{r eval=FALSE}
+p <- as.data.frame(read.table("cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100.bed",header=F,sep="\t"))
+colnames(p) <- c("chr","start","stop")
+peaks <- makeGRangesFromDataFrame(p)
+```
+
+# Create Fragment objects, then Feature Matrix, then Seurat objects for each sample
+## HGMM
+```{r echo=F}
+HGMM_10x_path <- "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_HGMM_chromap_fragments.tsv.gz"
+HGMM_10x_cells <- read_tsv(HGMM_10x_path,col_names=c("chr","start","stop","cell","support"),col_types=c("-","-","-","-","c"),col_select="cell") %>%
+        pull(cell) %>%
+        unique()
+names(x = HGMM_10x_cells) <- paste0("HGMM_", HGMM_10x_cells)
+HGMM_10x_frags <- CreateFragmentObject(path = HGMM_10x_path, cells = HGMM_10x_cells, max.lines=NULL)
+HGMM_10x_mat <- FeatureMatrix(
+  fragments = HGMM_10x_frags,
+  features = peaks,
+  process_n = 20000,
+  sep = c("-", "-"),
+  verbose = TRUE
+)
+HGMM_10x_assay <- CreateChromatinAssay(HGMM_10x_mat, fragments = HGMM_10x_frags, genome = 'hg38', min.features = 500)
+HGMM_10x_seurat <- CreateSeuratObject(HGMM_10x_assay, assay = "peaks")
+HGMM_10x_seurat$Sample <- "HGMM"
+```
+
+```{r eval=FALSE}
+HGMM_10x_path <- "10x_HGMM_chromap_fragments.tsv.gz"
+HGMM_10x_cells <- read_tsv(HGMM_10x_path,col_names=c("chr","start","stop","cell","support"),col_types=c("-","-","-","-","c"),col_select="cell") %>% 
+	pull(cell) %>% 
+	unique()
+names(x = HGMM_10x_cells) <- paste0("HGMM_", HGMM_10x_cells)
+HGMM_10x_frags <- CreateFragmentObject(path = HGMM_10x_path, cells = HGMM_10x_cells, max.lines=NULL)
+HGMM_10x_mat <- FeatureMatrix(
+  fragments = HGMM_10x_frags,
+  features = peaks,
+  process_n = 20000,
+  sep = c("-", "-"),
+  verbose = TRUE
+)
+HGMM_10x_assay <- CreateChromatinAssay(HGMM_10x_mat, fragments = HGMM_10x_frags, genome = 'hg38', min.features = 500)
+HGMM_10x_seurat <- CreateSeuratObject(HGMM_10x_assay, assay = "peaks")
+HGMM_10x_seurat$Sample <- "HGMM"
+```
+
+## PBMC
+```{r echo=F}
+PBMC_10x_path <- "/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_PBMC_chromap_fragments.tsv.gz"
+PBMC_10x_cells <- read_tsv(PBMC_10x_path,col_names=c("chr","start","stop","cell","support"),col_types=c("-","-","-","-","c"),col_select="cell") %>%
+        pull(cell) %>%
+        unique()
+names(x = PBMC_10x_cells) <- paste0("PBMC_", PBMC_10x_cells)
+PBMC_10x_frags <- CreateFragmentObject(path = PBMC_10x_path, cells = PBMC_10x_cells, max.lines=NULL)
+PBMC_10x_mat <- FeatureMatrix(
+  fragments = PBMC_10x_frags,
+  features = peaks,
+  process_n = 20000,
+  sep = c("-", "-"),
+  verbose = TRUE
+)
+PBMC_10x_assay <- CreateChromatinAssay(PBMC_10x_mat, fragments = PBMC_10x_frags, genome = 'hg38', min.features = 500)
+PBMC_10x_seurat <- CreateSeuratObject(PBMC_10x_assay, assay = "peaks")
+PBMC_10x_seurat$Sample <- "PBMC"
+```
+
+```{r eval=F}
+PBMC_10x_path <- "10x_PBMC_chromap_fragments.tsv.gz"
+PBMC_10x_cells <- read_tsv(PBMC_10x_path,col_names=c("chr","start","stop","cell","support"),col_types=c("-","-","-","-","c"),col_select="cell") %>% 
+	pull(cell) %>% 
+	unique()
+names(x = PBMC_10x_cells) <- paste0("PBMC_", PBMC_10x_cells)
+PBMC_10x_frags <- CreateFragmentObject(path = PBMC_10x_path, cells = PBMC_10x_cells, max.lines=NULL)
+PBMC_10x_mat <- FeatureMatrix(
+  fragments = PBMC_10x_frags,
+  features = peaks,
+  process_n = 20000,
+  sep = c("-", "-"),
+  verbose = TRUE
+)
+PBMC_10x_assay <- CreateChromatinAssay(PBMC_10x_mat, fragments = PBMC_10x_frags, genome = 'hg38', min.features = 500)
+PBMC_10x_seurat <- CreateSeuratObject(PBMC_10x_assay, assay = "peaks")
+PBMC_10x_seurat$Sample <- "PBMC"
+```
+
+# Save workspace
+```{r echo=FALSE}
+save.image("../cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100_seurat_090222.RData")
+```
+
+```{r eval=FALSE}
+save.image("cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100_seurat_090222.RData")
+```

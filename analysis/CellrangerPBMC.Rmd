@@ -1,0 +1,28 @@
+---
+title: "Run Cellranger: PBMC"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+# Run cellranger-atac v2.0.0
+Genome reference for hg38 obtained from [this webpage](https://support.10xgenomics.com/single-cell-multiome-atac-gex/software/downloads/latest)
+
+```{bash eval=FALSE}
+curl -O https://cf.10xgenomics.com/supp/cell-arc/refdata-cellranger-arc-GRCh38-2020-A-2.0.0.tar.gz
+
+cellranger-atac count \
+	--id=10x_PBMC_cellranger \
+	--reference=refdata-cellranger-arc-GRCh38-2020-A-2.0.0 \
+	--fastqs=10k_pbmc_ATACv2_nextgem_Chromium_Controller_fastqs/ \
+	--sample=10k_pbmc_ATACv2_nextgem_Chromium_Controller \
+	--localcores=4 \
+	--localmem=100
+```
+# Runtime info
+## Initiated: 2022-09-01 20:06:10
+## Completed: 2022-09-02 20:08:13
+## Elapsed time: 24:02:03
+

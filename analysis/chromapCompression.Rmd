@@ -1,0 +1,20 @@
+---
+title: "Compressing chromap fragments files"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+# bgzf compress each fragments file. Keep uncompressed files too.
+```{bash eval=FALSE}
+bgzip -k 10x_HGMM_chromap_fragments.tsv
+bgzip -k 10x_PBMC_chromap_fragments.tsv
+```
+
+# Create tabix index of each
+```{bash eval=FALSE}
+tabix -0 -p bed 10x_HGMM_chromap_fragments.tsv.gz
+tabix -0 -p bed 10x_PBMC_chromap_fragments.tsv.gz
+```

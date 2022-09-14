@@ -1,0 +1,228 @@
+---
+title: "Comparison of chromap and cellranger quantifications and clustering"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+# Load packages and saved workspaces from chromap and cellranger processing
+```{r}
+library(tidyverse)
+library(GenomicRanges)
+library(Seurat)
+library(Signac)
+library(EnsDb.Hsapiens.v86)
+library(stringi)
+library(ggsankey)
+library(plyranges)
+
+library(reticulate)
+use_python("/nas/longleaf/apps/python/3.7.9/bin/python")
+```
+
+```{r echo=FALSE}
+load("../Cellranger_HGMM_PBMC_seurat_090222_QC_integrated.RData")
+load("../cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100_seurat_090222_QC_integrated.RData")
+```
+```{r eval=FALSE}
+load("Cellranger_HGMM_PBMC_seurat_090222_QC_integrated.RData")
+load("cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100_seurat_090222_QC_integrated.RData")
+```
+
+# Get cluster assignments for each cell barcode from each approach
+```{r}
+clust.cr <- cellranger.integrated$seurat_clusters
+clust.cm <- chromap.integrated$seurat_clusters
+```
+
+# Tidy cluster assignments, including reverse complement of chromap-derived barcodes
+This step ensures they match the include list used by cellranger, [as per this discussion](https://github.com/haowenz/chromap/issues/15)
+This may be changed in future versions and/or dependent on whether chromap was run with an include list of barcode sequences or barcode translation table (ie for multi-omics)
+```{r}
+clust.cr.tbl <- enframe(clust.cr) %>% 
+	dplyr::rename("Barcode" = name, "Cellranger.cluster" = value) %>%
+	mutate(Cellranger.cluster = as.numeric(as.character(Cellranger.cluster))) %>%
+	mutate(Barcode = str_replace_all(Barcode,"-1$",""))
+
+clust.cm.tbl <- enframe(clust.cm) %>% 
+	dplyr::rename("Barcode" = name, "Chromap.cluster" = value) %>%
+	mutate(Chromap.cluster = as.numeric(as.character(Chromap.cluster))) %>%
+	separate(Barcode,c("Sample","Seq"),sep="_") %>%
+	mutate(RC = stringi::stri_reverse(chartr(old="ATGC", new="TACG", Seq)))	%>%
+	unite("Barcode",c(Sample,RC),sep="_") %>%
+	dplyr::select(-Seq)
+```
+
+# Make Sankey plot showing cluster identity concordance
+This plot includes _all_ cells recovered by each approach, not just the common ones (ie a full_join)
+It is possible there is a discrepancy in how the two algorithms are performing barcode correction; here I'm matching by exact sequence matches
+
+```{r plot.height=12}
+make_long (
+	full_join(clust.cr.tbl,clust.cm.tbl,by="Barcode"),
+	Cellranger.cluster,Chromap.cluster) %>%
+	ggplot(aes(x = x, 
+		next_x = next_x, 
+		node = node, 
+		next_node = next_node,
+		fill = factor(node),
+		label = node)) +
+		geom_sankey() +
+		theme_sankey(base_size = 18) +
+		theme(legend.position = "none") +
+		xlab("") +
+		geom_sankey_text(size = 3, color = "black") +
+		scale_x_discrete(breaks = c("Cellranger.cluster","Chromap.cluster"),labels = c("Cellranger clusters","Chromap clusters"))
+```
+
+# Now use gene activities ("RNA" assay) as a means of comparing alignment signal across the genome
+Repeat same barcode renaming as we did above
+```{r}
+# Cellranger gene counts
+cr.genes <- cellranger.integrated@assays$RNA@data
+cr.names <- colnames(cr.genes)
+cr.newnames <- str_replace_all(cr.names,"-1","")
+colnames(cr.genes) <- cr.newnames
+
+
+# Chromap gene counts
+cm.genes <- chromap.integrated@assays$RNA@data
+cm.names <- colnames(cm.genes)
+snames <- str_replace_all(cm.names,"_.+","")
+seq <- str_replace_all(cm.names,".+_(.+)","\\1")
+rc <- stringi::stri_reverse(chartr(old="ATGC", new="TACG", seq))
+cm.newnames <- paste0(snames,"_",rc)
+colnames(cm.genes) <- cm.newnames
+
+# Reduce each matrix down to set of common barcodes and features
+intercells <- intersect(colnames(cr.genes),colnames(cm.genes))
+intergenes <- intersect(rownames(cr.genes),rownames(cm.genes))
+
+cr.subset <- cr.genes[intergenes,intercells]
+cm.subset <- cm.genes[intergenes,intercells]
+```
+
+# Compute cell-by-cell correlations between cellranger and chromap gene activities
+Performs slowly with a for-loop, however we do not want to densify our sparse matrices here
+```{r}
+cors <- rep(NA,length(intercells))
+
+for(i in 1:length(intercells)) {
+	cors[i] <- cor(as.numeric(cr.subset[,i]), as.numeric(cm.subset[,i]),method="spearman")
+}
+```
+
+# Draw histogram of cell-by-cell correlations based on gene activity
+```{r}
+hist(cors,xlab="Spearman correlation",main="Gene Activity correlations, Cellranger vs Chromap, common cells")
+```
+
+
+
+# Export cluster assignments for python-based metrics
+Filter for just common cell barcodes between two datasets. Make sure barcodes are printed in the same order!
+```{r echo=FALSE}
+clust.cr.tbl %>%
+	dplyr::filter(Barcode %in% intercells) %>%
+	arrange(Barcode) %>%
+	write_csv("../cellranger_clusters_intersectingCells.csv")
+
+clust.cm.tbl %>%
+	dplyr::filter(Barcode %in% intercells) %>%
+	arrange(Barcode) %>%
+	write_csv("../chromap_clusters_intersectingCells.csv")
+
+```{r eval=FALSE}
+clust.cr.tbl %>%
+	dplyr::filter(Barcode %in% intercells) %>%
+	arrange(Barcode) %>%
+	write_csv("cellranger_clusters_intersectingCells.csv")
+
+clust.cm.tbl %>%
+	dplyr::filter(Barcode %in% intercells) %>%
+	arrange(Barcode) %>%
+	write_csv("chromap_clusters_intersectingCells.csv")
+```
+
+# Now in python, compute NMI and ARI to summarize cluster membership similarities for common cells
+```{python}
+from sklearn.metrics.cluster import normalized_mutual_info_score
+from sklearn.metrics.cluster import adjusted_rand_score
+import pandas as pd
+```
+
+```{python echo=FALSE}
+cr_df = pd.read_csv('../cellranger_clusters_intersectingCells.csv')
+cr_clusters = cr_df['Cellranger.cluster'].values.tolist()
+
+cm_df = pd.read_csv('../chromap_clusters_intersectingCells.csv')
+cm_clusters = cm_df['Chromap.cluster'].values.tolist()
+```
+
+```{python eval=FALSE}
+cr_df = pd.read_csv('cellranger_clusters_intersectingCells.csv')
+cr_clusters = cr_df['Cellranger.cluster'].values.tolist()
+
+cm_df = pd.read_csv('chromap_clusters_intersectingCells.csv')
+cm_clusters = cm_df['Chromap.cluster'].values.tolist()
+```
+
+```{python}
+normalized_mutual_info_score(cr_clusters, cm_clusters)
+
+adjusted_rand_score(cr_clusters, cm_clusters)
+```
+
+# Compute percent overlap of peak calls between cellranger and chromap-MACS2 (excluding Zhang et. al cCRE features)
+## Load in all original peaks
+```{r echo=FALSE}
+HGMM.cr.peaks.all <- read.table("/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_HGMM_cellranger/outs/peaks.bed")
+colnames(HGMM.cr.peaks.all) <- c("chr","start","end")
+HGMM.cr.peaks.all.gr <- makeGRangesFromDataFrame(HGMM.cr.peaks.all)
+HGMM.cr.peaks.all.gr <- keepStandardChromosomes(HGMM.cr.peaks.all.gr,pruning.mode="coarse")
+
+PBMC.cr.peaks.all <- read.table("/proj/jmsimon/alevinForATAC/10X_scATAC_testData/10x_PBMC_cellranger/outs/peaks.bed")
+colnames(PBMC.cr.peaks.all) <- c("chr","start","end")
+PBMC.cr.peaks.all.gr <- makeGRangesFromDataFrame(PBMC.cr.peaks.all)
+PBMC.cr.peaks.all.gr <- keepStandardChromosomes(PBMC.cr.peaks.all.gr,pruning.mode="coarse")
+```
+
+```{r eval=FALSE}
+HGMM.cr.peaks.all <- read.table("10x_HGMM_cellranger/outs/peaks.bed")
+colnames(HGMM.cr.peaks.all) <- c("chr","start","end")
+HGMM.cr.peaks.all.gr <- makeGRangesFromDataFrame(HGMM.cr.peaks.all)
+HGMM.cr.peaks.all.gr <- keepStandardChromosomes(HGMM.cr.peaks.all.gr,pruning.mode="coarse")
+
+PBMC.cr.peaks.all <- read.table("10x_PBMC_cellranger/outs/peaks.bed")
+colnames(PBMC.cr.peaks.all) <- c("chr","start","end")
+PBMC.cr.peaks.all.gr <- makeGRangesFromDataFrame(PBMC.cr.peaks.all)
+PBMC.cr.peaks.all.gr <- keepStandardChromosomes(PBMC.cr.peaks.all.gr,pruning.mode="coarse")
+```
+
+
+## Make union set of all cellranger peaks with plyranges
+```{r}
+cr.union.all.gr <- union_ranges(HGMM.cr.peaks.all.gr,PBMC.cr.peaks.all.gr)
+```
+
+## Read in chromap-MACS2 peaks (already a union of both samples)
+```{r echo=FALSE}
+cm.peaks.all <- read.table("../10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks.bed")
+colnames(cm.peaks.all) <- c("chr","start","end")
+cm.peaks.all.gr <- makeGRangesFromDataFrame(cm.peaks.all)
+cm.peaks.all.gr <- keepStandardChromosomes(cm.peaks.all.gr,pruning.mode="coarse")
+```
+```{r eval=FALSE}
+cm.peaks.all <- read.table("10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks.bed")
+colnames(cm.peaks.all) <- c("chr","start","end")
+cm.peaks.all.gr <- makeGRangesFromDataFrame(cm.peaks.all)
+cm.peaks.all.gr <- keepStandardChromosomes(cm.peaks.all.gr,pruning.mode="coarse")
+```
+
+## Compute overlap as a fraction of the chromap-derived peaks
+```{r}
+length(join_overlap_inner(cm.peaks.all.gr,cr.union.all.gr)) / length(cm.peaks.all.gr)
+```
+

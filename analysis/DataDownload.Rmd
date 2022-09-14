@@ -1,0 +1,28 @@
+---
+title: "10x scATAC-seq data download"
+output:
+  workflowr::wflow_html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+# Retrieve data
+Download 10x scATAC-seq data from their website [here](https://www.10xgenomics.com/resources/datasets?query=&page=1&configure%5Bfacets%5D%5B0%5D=chemistryVersionAndThroughput&configure%5Bfacets%5D%5B1%5D=pipeline.version&configure%5BhitsPerPage%5D=500&menu%5Bproducts.name%5D=Single%20Cell%20ATAC)
+using the code below
+
+
+## 10k 1:1 Mixture of Human GM12878 and Mouse EL4 Cells, ATAC v2, Chromium Controller
+```{bash eval=FALSE}
+curl -O https://s3-us-west-2.amazonaws.com/10x.files/samples/cell-atac/2.1.0/10k_hgmm_ATACv2_nextgem_Chromium_Controller/10k_hgmm_ATACv2_nextgem_Chromium_Controller_fastqs.tar
+
+tar -xvf 10k_hgmm_ATACv2_nextgem_Chromium_Controller_fastqs.tar
+```
+
+## 10k Human PBMCs, ATAC v2, Chromium Controller
+```{bash eval=FALSE}
+curl -O https://s3-us-west-2.amazonaws.com/10x.files/samples/cell-atac/2.1.0/10k_pbmc_ATACv2_nextgem_Chromium_Controller/10k_pbmc_ATACv2_nextgem_Chromium_Controller_fastqs.tar
+
+tar -xvf 10k_pbmc_ATACv2_nextgem_Chromium_Controller_fastqs.tar
+```
+

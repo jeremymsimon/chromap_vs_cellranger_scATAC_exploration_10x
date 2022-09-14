@@ -7,4 +7,8 @@ editor_options:
   chunk_output_type: console
 ---
 
-Describe your project.
+This site contains the code and results of my comparative analysis of [chromap v0.1](https://github.com/haowenz/chromap) vs [cellranger-atac v2.0.0](https://support.10xgenomics.com/single-cell-atac/software/pipelines/latest/using/count) in the processing and analysis of 10x scATAC-seq data.
+
+For illustration purposes, I utilize publicly-accessible 10x scATAC-seq data from PBMCs and HGMM (GM12878 B-lymphocytes).
+
+All the code and results of this analysis are available from GitHub at https://github.com/jeremymsimon/chromap_vs_cellranger_scATAC_exploration_10x. 
