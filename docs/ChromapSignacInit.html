@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>Signac: create data objects from chromap quantifications</title>
+
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+
+<link rel="icon" href="https://github.com/workflowr/workflowr-assets/raw/main/img/reproducible.png">
+<!-- Add a small amount of space between sections. -->
+<style type="text/css">
+div.section {
+  padding-top: 12px;
+}
+</style>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.tab('show');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">chromap_vs_cellranger_scATAC_exploration_10x</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="about.html">About</a>
+</li>
+<li>
+  <a href="license.html">License</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">Signac: create data objects from chromap quantifications</h1>
+
+</div>
+
+
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span>
+</button>
+</p>
+<div id="workflowr-report" class="collapse">
+<ul class="nav nav-tabs">
+<li class="active">
+<a data-toggle="tab" href="#summary">Summary</a>
+</li>
+<li>
+<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> </a>
+</li>
+<li>
+<a data-toggle="tab" href="#versions">Past versions</a>
+</li>
+</ul>
+<div class="tab-content">
+<div id="summary" class="tab-pane fade in active">
+<p>
+<strong>Last updated:</strong> 2022-09-14
+</p>
+<p>
+<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 7 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 0
+</p>
+<p>
+<strong>Knit directory:</strong> <code>chromap_vs_cellranger_scATAC_exploration_10x/</code> <span class="glyphicon glyphicon-question-sign" aria-hidden="true" title="This is the local directory in which the code in this file was executed."> </span>
+</p>
+<p>
+This reproducible <a href="https://rmarkdown.rstudio.com">R Markdown</a> analysis was created with <a
+  href="https://github.com/workflowr/workflowr">workflowr</a> (version 1.7.0). The <em>Checks</em> tab describes the reproducibility checks that were applied when the results were created. The <em>Past versions</em> tab lists the development history.
+</p>
+<hr>
+</div>
+<div id="checks" class="tab-pane fade">
+<div id="workflowr-checks" class="panel-group">
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguptodate"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>R Markdown file:</strong> up-to-date </a>
+</p>
+</div>
+<div id="strongRMarkdownfilestronguptodate" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great! Since the R Markdown file has been committed to the Git repository, you know the exact version of the code that produced these results.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongEnvironmentstrongempty"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Environment:</strong> empty </a>
+</p>
+</div>
+<div id="strongEnvironmentstrongempty" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! The global environment was empty. Objects defined in the global environment can affect the analysis in your R Markdown file in unknown ways. For reproduciblity it’s best to always run the code in an empty environment.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSeedstrongcodesetseed20220912code"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Seed:</strong> <code>set.seed(20220912)</code> </a>
+</p>
+</div>
+<div id="strongSeedstrongcodesetseed20220912code" class="panel-collapse collapse">
+<div class="panel-body">
+<p>The command <code>set.seed(20220912)</code> was run prior to running the code in the R Markdown file. Setting a seed ensures that any results that rely on randomness, e.g. subsampling or permutations, are reproducible.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSessioninformationstrongrecorded"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Session information:</strong> recorded </a>
+</p>
+</div>
+<div id="strongSessioninformationstrongrecorded" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Recording the operating system, R version, and package versions is critical for reproducibility.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongCachestrongnone"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Cache:</strong> none </a>
+</p>
+</div>
+<div id="strongCachestrongnone" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Nice! There were no cached chunks for this analysis, so you can be confident that you successfully produced the results during this run.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongFilepathsstrongrelative"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>File paths:</strong> relative </a>
+</p>
+</div>
+<div id="strongFilepathsstrongrelative" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Using relative paths to the files within your workflowr project makes it easier to run your code on other machines.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrong10fdcb0"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> 10fdcb0 </a>
+</p>
+</div>
+<div id="strongRepositoryversionstrong10fdcb0" class="panel-collapse collapse">
+<div class="panel-body">
+<p>
+Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
+</p>
+<p>
+The results in this page were generated with repository version 10fdcb0. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+</p>
+<p>
+Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
+</p>
+<pre><code>
+working directory clean
+</code></pre>
+<p>
+Note that any generated files, e.g. HTML, png, CSS, etc., are not included in this status report because it is ok for generated content to have uncommitted changes.
+</p>
+</div>
+</div>
+</div>
+</div>
+<hr>
+</div>
+<div id="versions" class="tab-pane fade">
+
+<p>
+These are the previous versions of the repository in which changes were made to the R Markdown (<code>analysis/ChromapSignacInit.Rmd</code>) and HTML (<code>docs/ChromapSignacInit.html</code>) files. If you’ve configured a remote Git repository (see <code>?wflow_git_remote</code>), click on the hyperlinks in the table below to view the files as they were in that past version.
+</p>
+<div class="table-responsive">
+<table class="table table-condensed table-hover">
+<thead>
+<tr>
+<th>
+File
+</th>
+<th>
+Version
+</th>
+<th>
+Author
+</th>
+<th>
+Date
+</th>
+<th>
+Message
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+10fdcb0
+</td>
+<td>
+jeremymsimon
+</td>
+<td>
+2022-09-14
+</td>
+<td>
+Initial commit
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div id="load-genome-annotations" class="section level1">
+<h1>Load genome annotations</h1>
+<pre class="r"><code>library(tidyverse)</code></pre>
+<pre><code>── Attaching packages ─────────────────────────────────────── tidyverse 1.3.1 ──</code></pre>
+<pre><code>✔ ggplot2 3.3.6     ✔ purrr   0.3.4
+✔ tibble  3.1.8     ✔ dplyr   1.0.9
+✔ tidyr   1.2.0     ✔ stringr 1.4.0
+✔ readr   2.1.2     ✔ forcats 0.5.1</code></pre>
+<pre><code>── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+✖ dplyr::filter() masks stats::filter()
+✖ dplyr::lag()    masks stats::lag()</code></pre>
+<pre class="r"><code>library(GenomicRanges)</code></pre>
+<pre><code>Loading required package: stats4</code></pre>
+<pre><code>Loading required package: BiocGenerics</code></pre>
+<pre><code>
+Attaching package: &#39;BiocGenerics&#39;</code></pre>
+<pre><code>The following objects are masked from &#39;package:dplyr&#39;:
+
+    combine, intersect, setdiff, union</code></pre>
+<pre><code>The following objects are masked from &#39;package:stats&#39;:
+
+    IQR, mad, sd, var, xtabs</code></pre>
+<pre><code>The following objects are masked from &#39;package:base&#39;:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which.max, which.min</code></pre>
+<pre><code>Loading required package: S4Vectors</code></pre>
+<pre><code>
+Attaching package: &#39;S4Vectors&#39;</code></pre>
+<pre><code>The following objects are masked from &#39;package:dplyr&#39;:
+
+    first, rename</code></pre>
+<pre><code>The following object is masked from &#39;package:tidyr&#39;:
+
+    expand</code></pre>
+<pre><code>The following objects are masked from &#39;package:base&#39;:
+
+    expand.grid, I, unname</code></pre>
+<pre><code>Loading required package: IRanges</code></pre>
+<pre><code>
+Attaching package: &#39;IRanges&#39;</code></pre>
+<pre><code>The following objects are masked from &#39;package:dplyr&#39;:
+
+    collapse, desc, slice</code></pre>
+<pre><code>The following object is masked from &#39;package:purrr&#39;:
+
+    reduce</code></pre>
+<pre><code>Loading required package: GenomeInfoDb</code></pre>
+<pre class="r"><code>library(Seurat)</code></pre>
+<pre><code>Attaching SeuratObject</code></pre>
+<pre class="r"><code>library(Signac)
+library(EnsDb.Hsapiens.v86)</code></pre>
+<pre><code>Loading required package: ensembldb</code></pre>
+<pre><code>Loading required package: GenomicFeatures</code></pre>
+<pre><code>Loading required package: AnnotationDbi</code></pre>
+<pre><code>Loading required package: Biobase</code></pre>
+<pre><code>Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    &#39;browseVignettes()&#39;. To cite Bioconductor, see
+    &#39;citation(&quot;Biobase&quot;)&#39;, and for packages &#39;citation(&quot;pkgname&quot;)&#39;.</code></pre>
+<pre><code>
+Attaching package: &#39;AnnotationDbi&#39;</code></pre>
+<pre><code>The following object is masked from &#39;package:dplyr&#39;:
+
+    select</code></pre>
+<pre><code>Loading required package: AnnotationFilter</code></pre>
+<pre><code>
+Attaching package: &#39;ensembldb&#39;</code></pre>
+<pre><code>The following object is masked from &#39;package:dplyr&#39;:
+
+    filter</code></pre>
+<pre><code>The following object is masked from &#39;package:stats&#39;:
+
+    filter</code></pre>
+<pre class="r"><code>annotations &lt;- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86)</code></pre>
+<pre><code>Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)
+
+Warning in .Seqinfo.mergexy(x, y): The 2 combined objects have no sequence levels in common. (Use
+  suppressWarnings() to suppress this warning.)</code></pre>
+<pre class="r"><code>seqlevelsStyle(annotations) &lt;- &#39;UCSC&#39;
+genome(annotations) &lt;- &quot;hg38&quot;</code></pre>
+</div>
+<div id="load-peaks-as-granges-object" class="section level1">
+<h1>Load peaks as GRanges object</h1>
+<pre class="r"><code>p &lt;- as.data.frame(read.table(&quot;cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100.bed&quot;,header=F,sep=&quot;\t&quot;))
+colnames(p) &lt;- c(&quot;chr&quot;,&quot;start&quot;,&quot;stop&quot;)
+peaks &lt;- makeGRangesFromDataFrame(p)</code></pre>
+</div>
+<div id="create-fragment-objects-then-feature-matrix-then-seurat-objects-for-each-sample" class="section level1">
+<h1>Create Fragment objects, then Feature Matrix, then Seurat objects for each sample</h1>
+<div id="hgmm" class="section level2">
+<h2>HGMM</h2>
+<pre><code>Computing hash</code></pre>
+<pre><code>Extracting reads overlapping genomic regions</code></pre>
+<pre><code>Warning: Feature names cannot have underscores (&#39;_&#39;), replacing with dashes
+(&#39;-&#39;)</code></pre>
+<pre><code>Warning: Keys should be one or more alphanumeric characters followed by an
+underscore, setting key from peaks to peaks_</code></pre>
+<pre class="r"><code>HGMM_10x_path &lt;- &quot;10x_HGMM_chromap_fragments.tsv.gz&quot;
+HGMM_10x_cells &lt;- read_tsv(HGMM_10x_path,col_names=c(&quot;chr&quot;,&quot;start&quot;,&quot;stop&quot;,&quot;cell&quot;,&quot;support&quot;),col_types=c(&quot;-&quot;,&quot;-&quot;,&quot;-&quot;,&quot;-&quot;,&quot;c&quot;),col_select=&quot;cell&quot;) %&gt;% 
+    pull(cell) %&gt;% 
+    unique()
+names(x = HGMM_10x_cells) &lt;- paste0(&quot;HGMM_&quot;, HGMM_10x_cells)
+HGMM_10x_frags &lt;- CreateFragmentObject(path = HGMM_10x_path, cells = HGMM_10x_cells, max.lines=NULL)
+HGMM_10x_mat &lt;- FeatureMatrix(
+  fragments = HGMM_10x_frags,
+  features = peaks,
+  process_n = 20000,
+  sep = c(&quot;-&quot;, &quot;-&quot;),
+  verbose = TRUE
+)
+HGMM_10x_assay &lt;- CreateChromatinAssay(HGMM_10x_mat, fragments = HGMM_10x_frags, genome = &#39;hg38&#39;, min.features = 500)
+HGMM_10x_seurat &lt;- CreateSeuratObject(HGMM_10x_assay, assay = &quot;peaks&quot;)
+HGMM_10x_seurat$Sample &lt;- &quot;HGMM&quot;</code></pre>
+</div>
+<div id="pbmc" class="section level2">
+<h2>PBMC</h2>
+<pre><code>Computing hash</code></pre>
+<pre><code>Extracting reads overlapping genomic regions</code></pre>
+<pre><code>Warning: Feature names cannot have underscores (&#39;_&#39;), replacing with dashes
+(&#39;-&#39;)</code></pre>
+<pre><code>Warning: Keys should be one or more alphanumeric characters followed by an
+underscore, setting key from peaks to peaks_</code></pre>
+<pre class="r"><code>PBMC_10x_path &lt;- &quot;10x_PBMC_chromap_fragments.tsv.gz&quot;
+PBMC_10x_cells &lt;- read_tsv(PBMC_10x_path,col_names=c(&quot;chr&quot;,&quot;start&quot;,&quot;stop&quot;,&quot;cell&quot;,&quot;support&quot;),col_types=c(&quot;-&quot;,&quot;-&quot;,&quot;-&quot;,&quot;-&quot;,&quot;c&quot;),col_select=&quot;cell&quot;) %&gt;% 
+    pull(cell) %&gt;% 
+    unique()
+names(x = PBMC_10x_cells) &lt;- paste0(&quot;PBMC_&quot;, PBMC_10x_cells)
+PBMC_10x_frags &lt;- CreateFragmentObject(path = PBMC_10x_path, cells = PBMC_10x_cells, max.lines=NULL)
+PBMC_10x_mat &lt;- FeatureMatrix(
+  fragments = PBMC_10x_frags,
+  features = peaks,
+  process_n = 20000,
+  sep = c(&quot;-&quot;, &quot;-&quot;),
+  verbose = TRUE
+)
+PBMC_10x_assay &lt;- CreateChromatinAssay(PBMC_10x_mat, fragments = PBMC_10x_frags, genome = &#39;hg38&#39;, min.features = 500)
+PBMC_10x_seurat &lt;- CreateSeuratObject(PBMC_10x_assay, assay = &quot;peaks&quot;)
+PBMC_10x_seurat$Sample &lt;- &quot;PBMC&quot;</code></pre>
+</div>
+</div>
+<div id="save-workspace" class="section level1">
+<h1>Save workspace</h1>
+<pre class="r"><code>save.image(&quot;cCRE_hg38_10x_HGMM_PBMC_chromap_fragments_MACS_q01_unionPeaks_merge100_seurat_090222.RData&quot;)</code></pre>
+<br>
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-wrench" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="workflowr-sessioninfo" class="collapse">
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>R version 4.1.0 (2021-05-18)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Red Hat Enterprise Linux 8.5 (Ootpa)
+
+Matrix products: default
+BLAS/LAPACK: /nas/longleaf/rhel8/apps/r/4.1.0/lib/libopenblas_haswellp-r0.3.5.so
+
+locale:
+ [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
+ [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    
+ [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   
+ [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 
+ [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       
+
+attached base packages:
+[1] stats4    stats     graphics  grDevices utils     datasets  methods  
+[8] base     
+
+other attached packages:
+ [1] EnsDb.Hsapiens.v86_2.99.0 ensembldb_2.18.3         
+ [3] AnnotationFilter_1.18.0   GenomicFeatures_1.46.5   
+ [5] AnnotationDbi_1.56.2      Biobase_2.54.0           
+ [7] Signac_1.7.0.9003         SeuratObject_4.0.4       
+ [9] Seurat_4.1.0              GenomicRanges_1.46.1     
+[11] GenomeInfoDb_1.30.1       IRanges_2.28.0           
+[13] S4Vectors_0.32.4          BiocGenerics_0.40.0      
+[15] forcats_0.5.1             stringr_1.4.0            
+[17] dplyr_1.0.9               purrr_0.3.4              
+[19] readr_2.1.2               tidyr_1.2.0              
+[21] tibble_3.1.8              ggplot2_3.3.6            
+[23] tidyverse_1.3.1           workflowr_1.7.0          
+
+loaded via a namespace (and not attached):
+  [1] utf8_1.2.2                  reticulate_1.25            
+  [3] tidyselect_1.1.2            RSQLite_2.2.10             
+  [5] htmlwidgets_1.5.4           grid_4.1.0                 
+  [7] BiocParallel_1.28.3         Rtsne_0.15                 
+  [9] munsell_0.5.0               codetools_0.2-18           
+ [11] ica_1.0-2                   future_1.24.0              
+ [13] miniUI_0.1.1.1              withr_2.5.0                
+ [15] spatstat.random_2.1-0       colorspace_2.0-3           
+ [17] filelock_1.0.2              knitr_1.37                 
+ [19] rstudioapi_0.13             ROCR_1.0-11                
+ [21] tensor_1.5                  listenv_0.8.0              
+ [23] MatrixGenerics_1.6.0        git2r_0.30.1               
+ [25] GenomeInfoDbData_1.2.7      polyclip_1.10-0            
+ [27] bit64_4.0.5                 rprojroot_2.0.2            
+ [29] parallelly_1.30.0           vctrs_0.4.1                
+ [31] generics_0.1.2              xfun_0.30                  
+ [33] biovizBase_1.42.0           BiocFileCache_2.2.1        
+ [35] R6_2.5.1                    DelayedArray_0.20.0        
+ [37] bitops_1.0-7                spatstat.utils_2.3-0       
+ [39] cachem_1.0.6                assertthat_0.2.1           
+ [41] vroom_1.5.7                 BiocIO_1.4.0               
+ [43] promises_1.2.0.1            scales_1.2.0               
+ [45] nnet_7.3-17                 gtable_0.3.0               
+ [47] globals_0.14.0              processx_3.5.2             
+ [49] goftest_1.2-3               rlang_1.0.4                
+ [51] RcppRoll_0.3.0              splines_4.1.0              
+ [53] rtracklayer_1.54.0          lazyeval_0.2.2             
+ [55] dichromat_2.0-0             checkmate_2.0.0            
+ [57] spatstat.geom_2.3-2         broom_1.0.0                
+ [59] yaml_2.3.5                  reshape2_1.4.4             
+ [61] abind_1.4-5                 modelr_0.1.8               
+ [63] backports_1.4.1             httpuv_1.6.5               
+ [65] Hmisc_4.6-0                 tools_4.1.0                
+ [67] ellipsis_0.3.2              spatstat.core_2.4-0        
+ [69] jquerylib_0.1.4             RColorBrewer_1.1-3         
+ [71] ggridges_0.5.3              Rcpp_1.0.8.3               
+ [73] plyr_1.8.7                  base64enc_0.1-3            
+ [75] progress_1.2.2              zlibbioc_1.40.0            
+ [77] RCurl_1.98-1.6              prettyunits_1.1.1          
+ [79] ps_1.6.0                    rpart_4.1.16               
+ [81] deldir_1.0-6                pbapply_1.5-0              
+ [83] cowplot_1.1.1               zoo_1.8-9                  
+ [85] SummarizedExperiment_1.24.0 haven_2.4.3                
+ [87] ggrepel_0.9.1               cluster_2.1.2              
+ [89] fs_1.5.2                    magrittr_2.0.2             
+ [91] data.table_1.14.2           scattermore_0.8            
+ [93] lmtest_0.9-40               reprex_2.0.1               
+ [95] RANN_2.6.1                  whisker_0.4                
+ [97] ProtGenerics_1.26.0         fitdistrplus_1.1-6         
+ [99] matrixStats_0.62.0          hms_1.1.1                  
+[101] patchwork_1.1.1             mime_0.12                  
+[103] evaluate_0.15               xtable_1.8-4               
+[105] XML_3.99-0.9                jpeg_0.1-9                 
+[107] readxl_1.3.1                gridExtra_2.3              
+[109] biomaRt_2.50.3              compiler_4.1.0             
+[111] KernSmooth_2.23-20          crayon_1.5.1               
+[113] htmltools_0.5.2             mgcv_1.8-40                
+[115] later_1.3.0                 tzdb_0.2.0                 
+[117] Formula_1.2-4               lubridate_1.8.0            
+[119] DBI_1.1.2                   dbplyr_2.1.1               
+[121] rappdirs_0.3.3              MASS_7.3-55                
+[123] Matrix_1.4-0                cli_3.3.0                  
+[125] parallel_4.1.0              igraph_1.3.3               
+[127] pkgconfig_2.0.3             GenomicAlignments_1.30.0   
+[129] getPass_0.2-2               foreign_0.8-82             
+[131] plotly_4.10.0               spatstat.sparse_2.1-0      
+[133] xml2_1.3.3                  bslib_0.3.1                
+[135] XVector_0.34.0              rvest_1.0.2                
+[137] VariantAnnotation_1.40.0    callr_3.7.0                
+[139] digest_0.6.29               sctransform_0.3.3          
+[141] RcppAnnoy_0.0.19            spatstat.data_2.1-2        
+[143] Biostrings_2.62.0           rmarkdown_2.12             
+[145] cellranger_1.1.0            leiden_0.3.9               
+[147] fastmatch_1.1-3             htmlTable_2.4.0            
+[149] uwot_0.1.11                 restfulr_0.0.13            
+[151] curl_4.3.2                  shiny_1.7.1                
+[153] Rsamtools_2.10.0            rjson_0.2.21               
+[155] lifecycle_1.0.1             nlme_3.1-155               
+[157] jsonlite_1.8.0              BSgenome_1.62.0            
+[159] viridisLite_0.4.0           fansi_1.0.3                
+[161] pillar_1.7.0                lattice_0.20-45            
+[163] KEGGREST_1.34.0             fastmap_1.1.0              
+[165] httr_1.4.2                  survival_3.2-13            
+[167] glue_1.6.2                  png_0.1-7                  
+[169] bit_4.0.4                   stringi_1.7.6              
+[171] sass_0.4.0                  blob_1.2.2                 
+[173] latticeExtra_0.6-29         memoise_2.0.1              
+[175] irlba_2.3.5                 future.apply_1.8.1         </code></pre>
+</div>
+</div>
+
+
+<!-- Adjust MathJax settings so that all math formulae are shown using
+TeX fonts only; see
+https://docs.mathjax.org/en/latest/web/configuration.html. This will make
+the presentation more consistent at the cost of the webpage sometimes
+taking slightly longer to load. Note that this only works because the
+footer is added to webpages before the MathJax javascript. -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
